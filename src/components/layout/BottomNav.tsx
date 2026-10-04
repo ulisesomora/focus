@@ -3,23 +3,24 @@ import { useEffect, useState } from "react";
 import {
   CalendarDays,
   Home,
-  Inbox,
+  Sun,
   Menu,
   Plus,
 } from "lucide-react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 
 import { QuickCapture } from "../capture/QuickCapture";
 
 const navItems = [
-  { label: "Hoy", to: "/", icon: Home },
-  { label: "Inbox", to: "/inbox", icon: Inbox },
+  { label: "Tareas", to: "/", icon: Home },
+  { label: "Hoy", to: "/today", icon: Sun },
   { label: "Agenda", to: "/agenda", icon: CalendarDays },
   { label: "Más", to: "/more", icon: Menu },
 ];
 
 export function BottomNav() {
   const [captureOpen, setCaptureOpen] = useState(false);
+  const location = useLocation();
 
   useEffect(() => {
     const openCapture = () => {
@@ -42,8 +43,8 @@ export function BottomNav() {
 
             <button
               type="button"
-              aria-label="Capturar"
-              onClick={() => setCaptureOpen(true)}
+              aria-label={["/", "/today"].includes(location.pathname) ? "Nueva tarea" : "Capturar"}
+              onClick={() => ["/", "/today"].includes(location.pathname) ? window.dispatchEvent(new Event("focus-open-task")) : setCaptureOpen(true)}
               className="-mt-7 flex h-14 w-14 items-center justify-center rounded-full bg-gray-900 text-white shadow-lg transition active:scale-95"
             >
               <Plus size={28} />
@@ -73,6 +74,7 @@ function NavItem({ item }: NavItemProps) {
   return (
     <NavLink
       to={item.to}
+      end={item.to === "/"}
       className={({ isActive }) =>
         `flex min-w-14 flex-col items-center justify-center gap-1 text-xs transition ${
           isActive

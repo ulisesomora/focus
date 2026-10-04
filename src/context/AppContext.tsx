@@ -1,3 +1,4 @@
+import { labelKey, uniqueLabels } from "../utils/labels";
 import {
   createContext,
   useContext,
@@ -28,6 +29,7 @@ import type { User } from "firebase/auth";
 import {
   connectCorePersistence,
   deleteCapture as deletePersistedCapture,
+  deleteTask as deletePersistedTask,
   saveActivity,
   saveCapture,
   saveGoal,
@@ -91,11 +93,12 @@ type AppContextType = {
   ) => void;
   processCapturePlanned: (captureId: string, plan: PlannedCapture) => void;
   updateTask: (taskId: string, patch: TaskPatch) => void;
+  deleteTask: (taskId: string) => void;
   moveTask: (taskId: string, status: TaskStatus) => void;
   startTask: (taskId: string) => void;
   pauseTask: (taskId: string, reason: string, note?: string) => void;
   setActiveTask: (taskId: string) => void;
-  addHabit: (habit: Omit<Habit, "id">) => void;
+  addHabit: (habit: Omit<Habit, "id">) => string;
   toggleHabit: (habitId: string) => void;
   incrementHabit: (habitId: string, amount?: number) => void;
   addRoutine: (routine: Omit<Routine, "id">) => void;
@@ -107,6 +110,9 @@ type AppContextType = {
   addProject: (project: Omit<Project, "id" | "createdAt">) => void;
   updateProject: (projectId: string, patch: ProjectPatch) => void;
   addActivity: (activity: Omit<Activity, "id" | "createdAt">) => void;
+  createLabel: (name: string) => string;
+  renameLabel: (name: string, next: string) => boolean;
+  deleteLabel: (name: string) => void;
   updateSettings: (patch: SettingsPatch) => void;
   resetSettings: () => void;
   clearDemoData: () => Promise<void>;
@@ -392,6 +398,9 @@ export function AppProvider({ children }: AppProviderProps) {
 
   function updateTask(taskId: string, patch: TaskPatch) {
     const currentTask = tasks.find((task) => task.id === taskId);
+    if (patch.status && patch.status !== currentTask?.status) {
+      patch = { ...patch, completedAt: patch.status === "completed" ? new Date() : undefined };
+    }
     setTasks((current) =>
       current.map((task) =>
         task.id === taskId ? { ...task, ...patch } : task,
@@ -412,6 +421,12 @@ export function AppProvider({ children }: AppProviderProps) {
     }
   }
 
+  function deleteTask(taskId: string) {
+    if (!tasks.some((task) => task.id === taskId)) return;
+    setTasks((current) => current.filter((task) => task.id !== taskId));
+    persistSafely(deletePersistedTask(taskId));
+  }
+
   function moveTask(taskId: string, status: TaskStatus) {
     const currentTask = tasks.find((task) => task.id === taskId);
     setTasks((current) =>
@@ -422,7 +437,7 @@ export function AppProvider({ children }: AppProviderProps) {
           ...task,
           status,
           isActive: status === "in_progress" ? task.isActive : false,
-          ...(status === "completed" ? { completedAt: new Date() } : {}),
+          completedAt: status === "completed" ? (currentTask?.status === "completed" ? currentTask.completedAt : new Date()) : undefined,
         };
       }),
     );
@@ -432,7 +447,7 @@ export function AppProvider({ children }: AppProviderProps) {
           ...currentTask,
           status,
           isActive: status === "in_progress" ? currentTask.isActive : false,
-          ...(status === "completed" ? { completedAt: new Date() } : {}),
+          completedAt: status === "completed" ? (currentTask?.status === "completed" ? currentTask.completedAt : new Date()) : undefined,
         }),
       );
     }
@@ -529,6 +544,7 @@ export function AppProvider({ children }: AppProviderProps) {
     setHabitDefinitions((current) => [nextHabit, ...current]);
     persistSafely(saveHabit(nextHabit));
     logEntityActivity("habit", id, "created", habit.title, "Creaste el hábito");
+    return id;
   }
 
   function toggleHabit(habitId: string) {
@@ -682,6 +698,44 @@ export function AppProvider({ children }: AppProviderProps) {
     }
   }
 
+  function labelCatalog() {
+    return uniqueLabels([...(settings.labels ?? []), ...tasks.flatMap(task => task.labels ?? []), ...habitDefinitions.flatMap(habit => habit.labels ?? [])]);
+  }
+
+  function createLabel(name: string) {
+    const clean = uniqueLabels([name])[0];
+    if (!clean) return "";
+    const catalog = labelCatalog();
+    const canonical = catalog.find(value => labelKey(value) === labelKey(clean)) ?? clean;
+    updateSettings({ labels: uniqueLabels([...catalog, canonical]) });
+    return canonical;
+  }
+
+  function renameLabel(name: string, next: string) {
+    const clean = uniqueLabels([next])[0];
+    if (!clean) return false;
+    const catalog = labelCatalog();
+    if (catalog.some(value => labelKey(value) === labelKey(clean) && labelKey(value) !== labelKey(name))) return false;
+    updateSettings({ labels: uniqueLabels(catalog.map(value => labelKey(value) === labelKey(name) ? clean : value)) });
+    const nextTasks = tasks.map(task => task.labels?.some(value => labelKey(value) === labelKey(name)) ? { ...task, labels: uniqueLabels(task.labels.map(value => labelKey(value) === labelKey(name) ? clean : value)) } : task);
+    setTasks(nextTasks);
+    nextTasks.forEach((task, index) => { if (task !== tasks[index]) persistSafely(saveTask(task)); });
+    const nextHabits = habitDefinitions.map(habit => habit.labels?.some(value => labelKey(value) === labelKey(name)) ? { ...habit, labels: uniqueLabels(habit.labels.map(value => labelKey(value) === labelKey(name) ? clean : value)) } : habit);
+    setHabitDefinitions(nextHabits);
+    nextHabits.forEach((habit, index) => { if (habit !== habitDefinitions[index]) persistSafely(saveHabit(habit)); });
+    return true;
+  }
+
+  function deleteLabel(name: string) {
+    updateSettings({ labels: labelCatalog().filter(value => labelKey(value) !== labelKey(name)) });
+    const nextTasks = tasks.map(task => task.labels?.some(value => labelKey(value) === labelKey(name)) ? { ...task, labels: task.labels.filter(value => labelKey(value) !== labelKey(name)) } : task);
+    setTasks(nextTasks);
+    nextTasks.forEach((task, index) => { if (task !== tasks[index]) persistSafely(saveTask(task)); });
+    const nextHabits = habitDefinitions.map(habit => habit.labels?.some(value => labelKey(value) === labelKey(name)) ? { ...habit, labels: habit.labels.filter(value => labelKey(value) !== labelKey(name)) } : habit);
+    setHabitDefinitions(nextHabits);
+    nextHabits.forEach((habit, index) => { if (habit !== habitDefinitions[index]) persistSafely(saveHabit(habit)); });
+  }
+
   function updateSettings(patch: SettingsPatch) {
     const nextSettings: AppSettings = {
       ...settings,
@@ -782,6 +836,7 @@ export function AppProvider({ children }: AppProviderProps) {
         processCapture,
         processCapturePlanned,
         updateTask,
+        deleteTask,
         moveTask,
         startTask,
         pauseTask,
@@ -798,6 +853,7 @@ export function AppProvider({ children }: AppProviderProps) {
         addProject,
         updateProject,
         addActivity,
+        createLabel, renameLabel, deleteLabel,
         updateSettings,
         resetSettings,
         clearDemoData,

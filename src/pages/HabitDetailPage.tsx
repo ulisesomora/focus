@@ -3,6 +3,7 @@ import { ArrowLeft, Check, Flame, Trophy } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 
 import { MobileLayout } from "../components/layout/MobileLayout";
+import { defaultAreas } from "../types/settings";
 import { useApp } from "../context/AppContext";
 import {
   getConsistency,
@@ -17,7 +18,7 @@ import {
 
 export function HabitDetailPage() {
   const { habitId } = useParams();
-  const { habits, habitLogs } = useApp();
+  const { habits, habitLogs, settings } = useApp();
   const habit = habits.find((item) => item.id === habitId);
 
   if (!habit) {
@@ -56,6 +57,16 @@ export function HabitDetailPage() {
         <Metric icon={<Trophy size={18} />} label="Mejor racha" value={`${habit.bestStreak ?? 0}`} suffix={habit.frequency.type === "times_per_week" ? " sem" : " días"} />
         <Metric icon={<Check size={18} />} label="Consistencia" value={`${consistency}%`} />
       </div>
+
+      {(habit.area || habit.labels?.length || habit.description || habit.sourceTaskId) && <section className="mt-4 max-w-3xl space-y-2 text-sm text-gray-600">
+        <div className="flex flex-wrap items-center gap-2">
+          {habit.area && <span>{(settings.areas?.length ? settings.areas : defaultAreas).find(area => area.id === habit.area)?.name ?? "Sin área"}</span>}
+          <span className="rounded bg-gray-100 px-2 py-0.5 text-xs">Hábito</span>
+          {habit.labels?.map(label => <span key={label} className="rounded bg-indigo-50 px-2 py-0.5 text-xs text-indigo-600">#{label}</span>)}
+        </div>
+        {habit.description && <p className="whitespace-pre-wrap">{habit.description}</p>}
+        {habit.sourceTaskId && <Link to={`/tasks/${habit.sourceTaskId}`} className="block text-xs font-semibold text-gray-500">Ver tarea de origen y comentarios →</Link>}
+      </section>}
 
       <section className="mt-6 max-w-3xl rounded-3xl border border-gray-200 bg-white p-5">
         <div className="flex items-center justify-between gap-4">

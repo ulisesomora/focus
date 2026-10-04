@@ -1,3 +1,6 @@
+import { TaskDuration } from "../components/tasks/TaskDuration";
+import { TaskDayToggle, TaskDayBadges } from "../components/tasks/TaskDayToggle";
+import { LabelPicker } from "../components/labels/LabelPicker";
 import { useMemo, useState } from "react";
 import {
   ArrowLeft,
@@ -7,14 +10,17 @@ import {
   Play,
   RotateCcw,
   CalendarClock,
+  Trash2,
 } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { MobileLayout } from "../components/layout/MobileLayout";
+import { TaskMetadataPanel } from "../components/tasks/TaskMetadataPanel";
 import { TaskPlannerSheet } from "../components/tasks/TaskPlannerSheet";
 import { TaskEditorSheet } from "../components/tasks/TaskEditorSheet";
 import { BottomSheet } from "../components/ui/BottomSheet";
 import { useApp } from "../context/AppContext";
+import { defaultAreas } from "../types/settings";
 import type { TaskStatus } from "../types/task";
 
 const statusLabels: Record<TaskStatus, string> = {
@@ -30,7 +36,7 @@ const statusLabels: Record<TaskStatus, string> = {
 export function TaskDetailPage() {
   const { taskId } = useParams();
   const navigate = useNavigate();
-  const { tasks, startTask, pauseTask, moveTask, setActiveTask, updateTask } = useApp();
+  const { tasks, settings, startTask, pauseTask, moveTask, setActiveTask, updateTask, deleteTask } = useApp();
   const [pauseOpen, setPauseOpen] = useState(false);
   const [plannerOpen, setPlannerOpen] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
@@ -102,6 +108,15 @@ export function TaskDetailPage() {
         {task.project && (
           <p className="mt-4 text-sm text-gray-500">Proyecto: {task.project}</p>
         )}
+        <p className="mt-3 text-xs text-gray-500">Área: {task.area ? (settings.areas?.length ? settings.areas : defaultAreas).find((area) => area.id === task.area)?.name ?? "Área anterior" : "Sin área"}</p>
+
+        {!!task.labels?.length && (
+          <div className="mt-4 flex flex-wrap gap-1.5" aria-label="Etiquetas">
+            {task.labels.map((label) => (
+              <span key={label} className="rounded-md bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700">{label}</span>
+            ))}
+          </div>
+        )}
 
         {task.plannedDate && (
           <div className="mt-4 rounded-2xl bg-gray-50 p-3">
@@ -120,12 +135,12 @@ export function TaskDetailPage() {
           </div>
         )}
 
-        {task.description && (
-          <div className="mt-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Descripción</p>
-            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-700">{task.description}</p>
-          </div>
-        )}
+        {task.status === "completed" && <div className="mt-4 rounded-xl bg-green-50 p-3"><p className="text-xs text-green-700">{task.completedAt ? `Completada el ${new Date(task.completedAt).toLocaleString("es-MX")}` : "Completada · Sin fecha registrada"}</p><button type="button" onClick={() => moveTask(task.id, "pending")} className="mt-2 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-green-700">Volver a pendiente</button></div>}
+        <div className="mt-4"><TaskDuration task={task} /></div>
+        <div className="mt-4"><TaskDayToggle task={task} /><div className="mt-2"><TaskDayBadges task={task} /></div></div>
+        <div className="mt-4"><LabelPicker value={task.labels ?? []} onChange={labels => updateTask(task.id, { labels })} /></div>
+        <TaskMetadataPanel key={task.id} task={task} />
+
 
         {task.subtasks && task.subtasks.length > 0 && (
           <div className="mt-4">
@@ -291,6 +306,13 @@ export function TaskDetailPage() {
           Pendiente → En proceso → Pausa o Revisión → Finalizado.
         </p>
       </section>
+
+      <button type="button" onClick={() => {
+        if (window.confirm(`¿Eliminar “${task.title}”? Esta acción no se puede deshacer.`)) {
+          deleteTask(task.id);
+          navigate("/");
+        }
+      }} className="mt-6 flex items-center gap-2 text-sm font-semibold text-red-600"><Trash2 size={16} />Eliminar tarea</button>
 
       <Link
         to="/backlog"

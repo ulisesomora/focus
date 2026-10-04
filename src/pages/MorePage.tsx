@@ -1,7 +1,6 @@
 import {
   ChevronRight,
   Columns3,
-  ListTodo,
   Flame,
   Repeat2,
   Target,
@@ -10,6 +9,7 @@ import {
   FolderKanban,
   History,
   Settings,
+  Layers3, Tag,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -26,8 +26,14 @@ export function MorePage() {
       </header>
 
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
+        <Link to="/labels" className="flex items-center gap-3 border-b border-gray-100 px-4 py-4"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 text-gray-700"><Tag size={20} /></div><div className="min-w-0 flex-1"><p className="font-semibold text-gray-900">Etiquetas</p><p className="mt-0.5 text-xs text-gray-500">Crea, modifica y elimina etiquetas.</p></div><ChevronRight size={18} className="text-gray-400" /></Link>
+        <Link to="/areas" className="flex items-center gap-3 border-b border-gray-100 px-4 py-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 text-gray-700"><Layers3 size={20} /></div>
+          <div className="min-w-0 flex-1"><p className="font-semibold text-gray-900">Áreas</p><p className="mt-0.5 text-xs text-gray-500">Agrega y edita las áreas de tus tareas.</p></div>
+          <ChevronRight size={18} className="text-gray-400" />
+        </Link>
         <Link
-          to="/tasks"
+          to="/"
           className="flex items-center gap-3 border-b border-gray-100 px-4 py-4"
         >
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 text-gray-700">
@@ -35,27 +41,9 @@ export function MorePage() {
           </div>
 
           <div className="min-w-0 flex-1">
-            <p className="font-semibold text-gray-900">Tareas / Tablero</p>
+            <p className="font-semibold text-gray-900">Tareas</p>
             <p className="mt-0.5 text-xs text-gray-500">
-              Pendientes, proceso, pausas, revisión y finalizadas.
-            </p>
-          </div>
-
-          <ChevronRight size={18} className="text-gray-400" />
-        </Link>
-
-        <Link
-          to="/backlog"
-          className="flex items-center gap-3 px-4 py-4"
-        >
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 text-gray-700">
-            <ListTodo size={20} />
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <p className="font-semibold text-gray-900">Backlog</p>
-            <p className="mt-0.5 text-xs text-gray-500">
-              Tareas que quieres hacer, pero todavía no tienen fecha.
+              Todas tus tareas, áreas y etiquetas.
             </p>
           </div>
 

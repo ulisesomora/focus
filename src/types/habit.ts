@@ -7,6 +7,10 @@ export type HabitFrequency =
 
 export type Habit = {
   id: string;
+  sourceTaskId?: string;
+  area?: string;
+  labels?: string[];
+  description?: string;
   title: string;
   icon?: string;
   type: HabitType;

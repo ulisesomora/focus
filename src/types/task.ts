@@ -8,6 +8,7 @@ export type TaskStatus =
   | "cancelled";
 
 export type TaskPriority = "low" | "medium" | "high";
+export type TaskArea = string;
 
 export type TaskSubtask = {
   id: string;
@@ -19,11 +20,17 @@ export type Task = {
   id: string;
   title: string;
   status: TaskStatus;
+  convertedHabitId?: string;
+  kind?: "task" | "project";
+  comments?: { id: string; text: string; createdAt: string }[];
   project?: string;
+  area?: TaskArea;
   priority?: TaskPriority;
   description?: string;
+  labels?: string[];
   subtasks?: TaskSubtask[];
 
+  workDates?: string[];
   plannedDate?: string;
   plannedTime?: string;
   deadline?: string;

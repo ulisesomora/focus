@@ -1,8 +1,8 @@
-import { createBrowserRouter } from "react-router-dom";
+import { LabelsPage } from "../pages/LabelsPage";
+import { Navigate, createBrowserRouter } from "react-router-dom";
 import { TodayPage } from "../pages/TodayPage";
-import { InboxPage } from "../pages/InboxPage";
-import { BacklogPage } from "../pages/BacklogPage";
-import { TasksPage } from "../pages/TasksPage";
+import { AreasPage } from "../pages/AreasPage";
+import { AreaTasksPage } from "../pages/AreaTasksPage";
 import { AgendaPage } from "../pages/AgendaPage";
 import { MorePage } from "../pages/MorePage";
 import { TaskDetailPage } from "../pages/TaskDetailPage";
@@ -21,10 +21,14 @@ import { ActivityPage } from "../pages/ActivityPage";
 import { SettingsPage } from "../pages/SettingsPage";
 
 export const router = createBrowserRouter([
-  { path: "/", element: <TodayPage /> },
-  { path: "/inbox", element: <InboxPage /> },
-  { path: "/backlog", element: <BacklogPage /> },
-  { path: "/tasks", element: <TasksPage /> },
+  { path: "/", element: <TodayPage key="tasks" /> },
+  { path: "/today", element: <TodayPage key="today" daily /> },
+  { path: "/labels", element: <LabelsPage /> },
+  { path: "/areas", element: <AreasPage /> },
+  { path: "/areas/:areaId", element: <AreaTasksPage /> },
+  { path: "/inbox", element: <Navigate to="/" replace /> },
+  { path: "/backlog", element: <Navigate to="/" replace /> },
+  { path: "/tasks", element: <Navigate to="/" replace /> },
   { path: "/tasks/:taskId", element: <TaskDetailPage /> },
   { path: "/agenda", element: <AgendaPage /> },
   { path: "/habits", element: <HabitsPage /> },

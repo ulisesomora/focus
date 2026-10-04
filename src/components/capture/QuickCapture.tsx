@@ -11,14 +11,14 @@ type QuickCaptureProps = {
 };
 
 export function QuickCapture({ open, onClose }: QuickCaptureProps) {
-  const { addCapture, createTask } = useApp();
+  const { createTask } = useApp();
   const [title, setTitle] = useState("");
   const [detailsOpen, setDetailsOpen] = useState(false);
 
   function handleSave() {
     const cleanTitle = title.trim();
     if (!cleanTitle) return;
-    addCapture(cleanTitle);
+    createTask({ title: cleanTitle, status: "pending" });
     setTitle("");
     onClose();
   }
@@ -36,7 +36,7 @@ export function QuickCapture({ open, onClose }: QuickCaptureProps) {
   function createDetailedTask(value: TaskEditorValue) {
     createTask({
       ...value,
-      status: value.plannedDate ? "pending" : "backlog",
+      status: "pending",
     });
     setTitle("");
   }
@@ -83,7 +83,7 @@ export function QuickCapture({ open, onClose }: QuickCaptureProps) {
           disabled={!title.trim()}
           className="mt-6 h-12 w-full rounded-2xl bg-gray-900 font-semibold text-white transition disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400"
         >
-          Guardar en Inbox
+          Guardar tarea
         </button>
       </BottomSheet>
 

@@ -1,100 +1,162 @@
+import { DurationBadge } from "../components/tasks/TaskDuration";
+import { CompletedToday } from "../components/today/CompletedToday";
+import { CompletionFilter, type CompletionView } from "../components/tasks/CompletionFilter";
+import { TaskDayBadges, TaskDayToggle } from "../components/tasks/TaskDayToggle";
+import { TodayPreview } from "../components/today/TodayPreview";
+import { useTaskDays, tasksForDay, overdueTasks } from "../utils/taskDays";
+import { LabelFilter, matchesLabel } from "../components/labels/LabelPicker";
+import { useEffect, useMemo, useState } from "react";
+import { Check, ChevronRight, MoreHorizontal } from "lucide-react";
+import { Link } from "react-router-dom";
 import { MobileLayout } from "../components/layout/MobileLayout";
-
-import { ActiveTaskCard } from "../components/today/ActiveTaskCard";
-import { HabitPreview } from "../components/today/HabitPreview";
-import { InboxSummary } from "../components/today/InboxSummary";
-import { SummaryStats } from "../components/today/SummaryStats";
-import { TodayAgenda } from "../components/today/TodayAgenda";
-import { TodayHeader } from "../components/today/TodayHeader";
-import { RoutinePreview } from "../components/today/RoutinePreview";
-import { FirstRunCard } from "../components/today/FirstRunCard";
+import { SimpleTaskSheet } from "../components/tasks/SimpleTaskSheet";
+import { DesktopTodayWorkspace } from "../components/today/DesktopTodayWorkspace";
+import type { TaskEditorValue } from "../components/tasks/TaskEditorSheet";
 import { useApp } from "../context/AppContext";
-import { isHabitDueToday } from "../utils/habits";
+import { defaultAreas } from "../types/settings";
+import type { Task } from "../types/task";
 
+const colors = [
+  { card: "bg-indigo-50 text-indigo-700", label: "bg-indigo-50 text-indigo-700" },
+  { card: "bg-emerald-50 text-emerald-700", label: "bg-emerald-50 text-emerald-700" },
+  { card: "bg-pink-50 text-pink-700", label: "bg-pink-50 text-pink-700" },
+  { card: "bg-gray-100 text-gray-700", label: "bg-gray-100 text-gray-600" },
+];
 
-export function TodayPage() {
-  const { captures, tasks, habits, habitLogs, routines, goals, projects, settings, updateSettings, toggleHabit, incrementHabit } = useApp();
+export function TodayPage({ daily = false }: { daily?: boolean }) {
+  const { today, tomorrow } = useTaskDays();
+  const { tasks, settings, createTask, moveTask, updateTask } = useApp();
+  const areas = settings.areas?.length ? settings.areas : defaultAreas;
+  const [completionView, setCompletionView] = useState<CompletionView>("pending");
+  const [labelFilter, setLabelFilter] = useState("");
+  const [selectedArea, setSelectedArea] = useState<string | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [menuId, setMenuId] = useState<string | null>(null);
 
-  const today = getLocalDateKey();
+  useEffect(() => {
+    const openTask = () => setEditorOpen(true);
+    window.addEventListener("focus-open-task", openTask);
+    return () => window.removeEventListener("focus-open-task", openTask);
+  }, []);
 
+  const assigned = useMemo(() => tasks.filter((task) => task.status !== "cancelled"), [tasks]);
+  const visible = useMemo(() => assigned.filter(task => matchesLabel(task.labels, labelFilter) && (daily ? task.status !== "completed" : completionView === "all" || (task.status === "completed") === (completionView === "completed")))
+    .sort((a, b) => Number(a.status === "completed") - Number(b.status === "completed")
+      || (a.plannedDate ?? "9999").localeCompare(b.plannedDate ?? "9999")
+      || (a.plannedTime ?? "").localeCompare(b.plannedTime ?? "")), [assigned, labelFilter, daily, completionView]);
 
-  const hasUserData =
-    captures.length > 0 ||
-    tasks.length > 0 ||
-    habits.length > 0 ||
-    routines.length > 0 ||
-    goals.length > 0 ||
-    projects.length > 0;
+  const sections = daily
+    ? [...(overdueTasks(visible, today).length ? [{ title: "Tareas atrasadas", tasks: overdueTasks(visible, today) }] : []), { title: "Hoy", tasks: tasksForDay(visible, today) }, { title: "Mañana", tasks: tasksForDay(visible, tomorrow) }]
+    : [{ title: "Todas las tareas", tasks: visible }];
 
-  const openCapture = () => window.dispatchEvent(new Event("focus-open-capture"));
+  const day = new Intl.DateTimeFormat("es-MX", { weekday: "long", day: "numeric", month: "short" }).format(new Date());
+  const headerDate = day.charAt(0).toUpperCase() + day.slice(1).replace(".", "");
 
-  const activeTask = tasks.find((task) => task.isActive);
+  function toggleSubtask(task: Task, subtaskId: string) {
+    updateTask(task.id, { subtasks: task.subtasks?.map((item) => item.id === subtaskId ? { ...item, completed: !item.completed } : item) });
+  }
 
-  const upcomingTasks = tasks.filter(
-    (task) =>
-      task.status === "pending" &&
-      task.plannedDate === today,
-  );
+  function create(value: TaskEditorValue) {
+    createTask({ ...value, status: "pending" });
+  }
 
-  const activeTasks = tasks.filter(
-    (task) => task.status === "in_progress",
-  );
+  function areaFor(task: Task) {
+    return areas.find((area) => area.id === task.area);
+  }
 
   return (
-    <MobileLayout>
-      <TodayHeader />
+    <MobileLayout wideDesktop>
+      {!daily && <DesktopTodayWorkspace onAreaChange={setSelectedArea} />}
+      <div className={`mx-auto max-w-2xl ${daily ? "" : "lg:hidden"}`}>
+        <header className="mb-4 flex items-baseline gap-2">
+          <h1 className="text-xl font-bold text-gray-950">{daily ? "Hoy" : "Tareas"}</h1>
+          <span className="text-sm font-medium text-gray-500">{headerDate}</span>
+        </header>
 
-      {!hasUserData && !settings.onboardingCompleted ? (
-        <FirstRunCard
-          onCapture={openCapture}
-          onComplete={() => updateSettings({ onboardingCompleted: true })}
-        />
-      ) : !hasUserData ? (
-        <section className="rounded-3xl border border-dashed border-gray-300 bg-white p-7 text-center lg:max-w-2xl">
-          <h2 className="text-lg font-bold text-gray-900">Tu día está vacío</h2>
-          <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-500">
-            Puedes comenzar con una captura rápida y organizarla después. No necesitas asignar fecha, prioridad ni proyecto.
-          </p>
-          <button type="button" onClick={openCapture} className="mt-5 inline-flex h-10 items-center rounded-xl bg-gray-900 px-4 text-sm font-semibold text-white">
-            Capturar algo
-          </button>
-        </section>
-      ) : (
-      <div className="lg:grid lg:grid-cols-[minmax(0,720px)_300px] lg:items-start lg:gap-7">
-        <div className="min-w-0">
-          <SummaryStats
-            tasks={upcomingTasks.length}
-            active={activeTasks.length}
-            habits={habits.filter((habit) => isHabitDueToday(habit, habitLogs)).length}
-          />
-
-          {activeTask && <ActiveTaskCard task={activeTask} />}
-
-          <TodayAgenda tasks={upcomingTasks} />
+        {!daily && <>
+        <div className="-mx-4 overflow-x-auto overscroll-x-contain" aria-label="Áreas">
+          <div className="grid w-max min-w-full auto-cols-[126px] grid-flow-col grid-rows-2 justify-center gap-1.5">
+          {areas.map((area, index) => {
+            const count = assigned.filter((task) => task.area === area.id && task.status !== "completed").length;
+            return (
+              <Link key={area.id} to={`/areas/${area.id}`} className={`flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-lg px-1.5 text-center ${colors[index % colors.length].card}`}>
+                <span className="truncate text-[11px] font-semibold">{area.name}</span>
+                <span className="shrink-0 text-[11px] font-bold">{count}</span>
+              </Link>
+            );
+          })}
+          <Link to="/areas" className="flex h-9 min-w-0 items-center justify-center gap-1 rounded-lg bg-white px-1.5 text-[11px] font-medium text-gray-600">Ver todas las áreas <ChevronRight size={13} /></Link>
+          </div>
         </div>
 
-        <aside className="min-w-0 lg:-mt-7">
-          <HabitPreview
-            habits={habits.filter((habit) => isHabitDueToday(habit, habitLogs))}
-            onToggle={toggleHabit}
-            onIncrement={incrementHabit}
-          />
+        <TodayPreview />
+        </>}
 
-          <RoutinePreview routines={routines.filter((routine) => routine.days.includes(new Date().getDay()))} />
-
-          <InboxSummary count={captures.length} />
-        </aside>
+        <div className="mt-3 flex items-center gap-2">
+          {!daily && <CompletionFilter value={completionView} onChange={setCompletionView} />}
+          <div className="min-w-0 flex-1"><LabelFilter compact value={labelFilter} onChange={setLabelFilter} /></div>
+        </div>
+        {sections.map((section) => <section key={section.title} className="mt-5" aria-label={section.title}>
+          <h2 className="mb-1 text-sm font-semibold text-gray-800">{section.title} <span className="ml-1 text-xs text-gray-400">{section.tasks.length}</span></h2>
+          {section.tasks.length ? section.tasks.map((task) => {
+            const completed = task.status === "completed";
+            const area = areaFor(task);
+            const areaIndex = Math.max(0, areas.findIndex((item) => item.id === area?.id));
+            return (
+              <div key={task.id} className="border-b border-gray-200 py-3">
+                <div className="flex items-start gap-2.5">
+                  <button type="button" onClick={() => moveTask(task.id, completed ? "pending" : "completed")}
+                    aria-label={`${completed ? "Marcar pendiente" : "Marcar realizada"}: ${task.title}`}
+                    className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border ${completed ? "border-gray-400 bg-gray-400 text-white" : "border-gray-300 text-transparent hover:border-gray-500"}`}>
+                    <Check size={14} strokeWidth={3} />
+                  </button>
+                  <div className="min-w-0 flex-1">
+                    <p className={`text-sm leading-5 ${completed ? "text-gray-400 line-through" : "text-gray-900"}`}>{task.title}</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-1">
+                      {area && <span className={`rounded px-1 py-0.5 text-[10px] font-semibold uppercase ${colors[areaIndex % colors.length].label}`}>{area.name}</span>}
+                      {task.labels?.map((label) => <span key={label} className="rounded bg-gray-100 px-1 py-0.5 text-[10px] text-gray-600">{label}</span>)}
+                      <TaskDayBadges task={task} /><DurationBadge minutes={task.estimatedMinutes} />
+                      {completed && <span className="text-[10px] text-gray-500">{task.completedAt ? `Completada: ${new Date(task.completedAt).toLocaleDateString("es-MX")}` : "Completada · Sin fecha registrada"}</span>}
+                      {task.plannedTime && <span className="text-[10px] text-gray-500">{task.plannedTime}</span>}
+                    </div>
+                  </div>
+                  <div className="relative flex shrink-0 items-center">
+                    <button type="button" onClick={() => setMenuId((current) => current === task.id ? null : task.id)} aria-label={`Opciones de ${task.title}`} aria-expanded={menuId === task.id} className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100"><MoreHorizontal size={19} /></button>
+                    <Link to={`/tasks/${task.id}`} aria-label={`Ver tarea completa: ${task.title}`} className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100"><ChevronRight size={19} /></Link>
+                    {menuId === task.id && (
+                      <div className="absolute right-0 top-9 z-20 w-44 rounded-xl border border-gray-200 bg-white p-1.5 shadow-lg">
+                        <p className="px-2 py-1 text-[11px] font-semibold text-gray-400">Planificar</p>
+                        <TaskDayToggle task={task} />
+                        <p className="border-t border-gray-100 px-2 py-1 text-[11px] font-semibold text-gray-400">Asignar área</p>
+                        <button type="button" onClick={() => { updateTask(task.id, { area: undefined }); setMenuId(null); }} className="block w-full rounded-lg px-2 py-2 text-left text-xs text-gray-700 hover:bg-gray-100">Sin área{!area ? " ✓" : ""}</button>
+                        {areas.map((option) => <button key={option.id} type="button" onClick={() => { updateTask(task.id, { area: option.id }); setMenuId(null); }} className="block w-full rounded-lg px-2 py-2 text-left text-xs text-gray-700 hover:bg-gray-100">{option.name}{area?.id === option.id ? " ✓" : ""}</button>)}
+                        <Link to="/areas" className="block border-t border-gray-100 px-2 py-2 text-xs font-medium text-gray-600">Administrar áreas</Link>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {!!task.subtasks?.length && (
+                  <details className="group ml-8 mt-2" aria-label={`Subtareas de ${task.title}`}>
+                    <summary className="flex min-h-8 cursor-pointer list-none items-center gap-1.5 text-xs font-medium text-gray-500 [&::-webkit-details-marker]:hidden">
+                      <ChevronRight size={14} className="shrink-0 transition-transform group-open:rotate-90" />
+                      <span>Subtareas</span>
+                      <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-600">{task.subtasks.filter(item => item.completed).length}/{task.subtasks.length}</span>
+                    </summary>
+                    <div className="mt-1 border-l border-gray-200 pl-3">
+                      {task.subtasks.map((subtask) => <button key={subtask.id} type="button" onClick={() => toggleSubtask(task, subtask.id)} aria-pressed={subtask.completed} aria-label={`${subtask.completed ? "Marcar pendiente" : "Completar"} subtarea: ${subtask.title}`} className="flex min-h-9 w-full items-start gap-2 py-1.5 text-left">
+                        <span className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${subtask.completed ? "border-gray-400 bg-gray-400 text-white" : "border-gray-300 text-transparent"}`}><Check size={11} strokeWidth={3} /></span>
+                        <span className={`min-w-0 break-words text-xs leading-5 ${subtask.completed ? "text-gray-400 line-through" : "text-gray-700"}`}>{subtask.title}</span>
+                      </button>)}
+                    </div>
+                  </details>
+                )}
+              </div>
+            );
+          }) : <p className="py-10 text-center text-sm text-gray-500">{daily ? `No hay tareas planificadas para ${section.title.toLowerCase()}${labelFilter ? " con esta etiqueta" : ""}.` : "No hay tareas con este filtro."}</p>}
+        </section>)}
+        {daily && <CompletedToday />}
       </div>
-      )}
+      <SimpleTaskSheet initialArea={selectedArea ?? undefined} open={editorOpen} onClose={() => setEditorOpen(false)} onSave={create} />
     </MobileLayout>
   );
-}
-
-function getLocalDateKey() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-
-  return `${year}-${month}-${day}`;
 }

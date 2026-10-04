@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import {
   CalendarDays,
-  CheckSquare2,
   Columns3,
   Flame,
   Repeat2,
@@ -11,21 +10,19 @@ import {
   FolderKanban,
   History,
   Home,
-  Inbox,
-  ListTodo,
+  Sun,
   Plus,
-  Settings,
+  Settings, Tag,
 } from "lucide-react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 
 import { QuickCapture } from "../capture/QuickCapture";
 import { useApp } from "../../context/AppContext";
 
 const items = [
-  { label: "Hoy", to: "/", icon: Home },
-  { label: "Inbox", to: "/inbox", icon: Inbox },
-  { label: "Backlog", to: "/backlog", icon: ListTodo },
-  { label: "Tareas", to: "/tasks", icon: CheckSquare2 },
+  { label: "Tareas", to: "/", icon: Home },
+  { label: "Hoy", to: "/today", icon: Sun },
+  { label: "Etiquetas", to: "/labels", icon: Tag },
   { label: "Agenda", to: "/agenda", icon: CalendarDays },
   { label: "Hábitos", to: "/habits", icon: Flame },
   { label: "Rutinas", to: "/routines", icon: Repeat2 },
@@ -39,6 +36,7 @@ const items = [
 
 export function DesktopSidebar() {
   const [captureOpen, setCaptureOpen] = useState(false);
+  const location = useLocation();
 
   useEffect(() => {
     const openCapture = () => {
@@ -60,15 +58,15 @@ export function DesktopSidebar() {
         <div className="px-4">
           <button
             type="button"
-            onClick={() => setCaptureOpen(true)}
+            onClick={() => ["/", "/today"].includes(location.pathname) ? window.dispatchEvent(new Event("focus-open-task")) : setCaptureOpen(true)}
             className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gray-900 text-sm font-semibold text-white"
           >
             <Plus size={18} />
-            Capturar
+              {["/", "/today"].includes(location.pathname) ? "Nueva tarea" : "Capturar"}
           </button>
         </div>
 
-        <nav className="mt-6 flex-1 space-y-1 px-3">
+        <nav className="mt-6 min-h-0 flex-1 space-y-1 overflow-y-auto px-3">
           {items.map((item) => {
             const Icon = item.icon;
             return (

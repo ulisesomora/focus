@@ -225,6 +225,12 @@ export async function saveTask(task: Task) {
   await saveUserDocument("tasks", task.id, task);
 }
 
+export async function deleteTask(id: string) {
+  const userId = await resolveUserId();
+  if (!db || !userId) return;
+  await deleteDoc(doc(db, "users", userId, "tasks", id));
+}
+
 export async function saveTasks(tasks: Task[]) {
   await Promise.all(tasks.map(saveTask));
 }

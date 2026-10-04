@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 
 import type { HabitFrequency, HabitType } from "../../types/habit";
@@ -14,6 +14,7 @@ export type HabitDraft = {
 };
 
 type Props = {
+  initialTitle?: string;
   open: boolean;
   onClose: () => void;
   onSave: (habit: HabitDraft) => void;
@@ -29,7 +30,7 @@ const weekdayOptions = [
   { value: 0, label: "D" },
 ];
 
-export function HabitEditorSheet({ open, onClose, onSave }: Props) {
+export function HabitEditorSheet({ open, initialTitle = "", onClose, onSave }: Props) {
   const [title, setTitle] = useState("");
   const [icon, setIcon] = useState("✨");
   const [type, setType] = useState<HabitType>("complete");
@@ -38,6 +39,8 @@ export function HabitEditorSheet({ open, onClose, onSave }: Props) {
   const [frequencyType, setFrequencyType] = useState<HabitFrequency["type"]>("daily");
   const [specificDays, setSpecificDays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [timesPerWeek, setTimesPerWeek] = useState(3);
+
+  useEffect(() => { if (open) setTitle(initialTitle); }, [open, initialTitle]);
 
   function handleSave() {
     const clean = title.trim();
