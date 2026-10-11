@@ -19,11 +19,16 @@ export type TaskSubtask = {
 export type Task = {
   id: string;
   title: string;
+  spaceId?: string;
   status: TaskStatus;
+  backlog?: boolean;
   convertedHabitId?: string;
   kind?: "task" | "project";
   comments?: { id: string; text: string; createdAt: string }[];
   project?: string;
+  projectId?: string;
+  showOutsideProject?: boolean;
+  projectRole?: "main" | "child";
   area?: TaskArea;
   priority?: TaskPriority;
   description?: string;

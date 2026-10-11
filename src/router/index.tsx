@@ -1,3 +1,6 @@
+import { CompletedTasksPage } from "../pages/CompletedTasksPage";
+import { SpaceAreasPage } from "../pages/SpaceAreasPage";
+import { SpacesPage, SpaceTasksPage } from "../pages/SpacesPage";
 import { LabelsPage } from "../pages/LabelsPage";
 import { Navigate, createBrowserRouter } from "react-router-dom";
 import { TodayPage } from "../pages/TodayPage";
@@ -23,11 +26,15 @@ import { SettingsPage } from "../pages/SettingsPage";
 export const router = createBrowserRouter([
   { path: "/", element: <TodayPage key="tasks" /> },
   { path: "/today", element: <TodayPage key="today" daily /> },
+  { path: "/completed-tasks", element: <CompletedTasksPage /> },
+  { path: "/spaces", element: <SpacesPage /> },
+  { path: "/spaces/:spaceId/areas", element: <SpaceAreasPage /> },
+  { path: "/spaces/:spaceId", element: <SpaceTasksPage /> },
   { path: "/labels", element: <LabelsPage /> },
   { path: "/areas", element: <AreasPage /> },
   { path: "/areas/:areaId", element: <AreaTasksPage /> },
   { path: "/inbox", element: <Navigate to="/" replace /> },
-  { path: "/backlog", element: <Navigate to="/" replace /> },
+  { path: "/backlog", element: <TodayPage key="backlog" backlog /> },
   { path: "/tasks", element: <Navigate to="/" replace /> },
   { path: "/tasks/:taskId", element: <TaskDetailPage /> },
   { path: "/agenda", element: <AgendaPage /> },

@@ -1,3 +1,7 @@
+import { isBacklog } from "../utils/taskBacklog";
+import { TaskProjectLink } from "../components/projects/TaskProjectLink";
+import { areasForSpace } from "../utils/taskSpaces";
+import { TaskSpacePicker } from "../components/tasks/TaskSpacePicker";
 import { TaskDuration } from "../components/tasks/TaskDuration";
 import { TaskDayToggle, TaskDayBadges } from "../components/tasks/TaskDayToggle";
 import { LabelPicker } from "../components/labels/LabelPicker";
@@ -12,7 +16,7 @@ import {
   CalendarClock,
   Trash2,
 } from "lucide-react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 
 import { MobileLayout } from "../components/layout/MobileLayout";
 import { TaskMetadataPanel } from "../components/tasks/TaskMetadataPanel";
@@ -20,7 +24,6 @@ import { TaskPlannerSheet } from "../components/tasks/TaskPlannerSheet";
 import { TaskEditorSheet } from "../components/tasks/TaskEditorSheet";
 import { BottomSheet } from "../components/ui/BottomSheet";
 import { useApp } from "../context/AppContext";
-import { defaultAreas } from "../types/settings";
 import type { TaskStatus } from "../types/task";
 
 const statusLabels: Record<TaskStatus, string> = {
@@ -65,6 +68,8 @@ export function TaskDetailPage() {
     );
   }
 
+  if (task.convertedHabitId) return <Navigate to={`/habits/${task.convertedHabitId}`} replace />;
+
   const currentTaskId = task.id;
 
   function handlePause() {
@@ -91,6 +96,7 @@ export function TaskDetailPage() {
           <h1 className="truncate text-xl font-bold text-gray-900">{task.title}</h1>
         </div>
       </header>
+      
 
       <section className="rounded-3xl border border-gray-200 bg-white p-5 lg:max-w-3xl lg:p-6">
         <div className="flex flex-wrap items-center gap-2">
@@ -105,10 +111,10 @@ export function TaskDetailPage() {
           )}
         </div>
 
-        {task.project && (
+        {!task.projectId && task.project && (
           <p className="mt-4 text-sm text-gray-500">Proyecto: {task.project}</p>
         )}
-        <p className="mt-3 text-xs text-gray-500">Área: {task.area ? (settings.areas?.length ? settings.areas : defaultAreas).find((area) => area.id === task.area)?.name ?? "Área anterior" : "Sin área"}</p>
+        <p className="mt-3 text-xs text-gray-500">Área: {task.area ? areasForSpace(settings, task.spaceId).find((area) => area.id === task.area)?.name ?? "Sin área" : "Sin área"}</p>
 
         {!!task.labels?.length && (
           <div className="mt-4 flex flex-wrap gap-1.5" aria-label="Etiquetas">
@@ -118,7 +124,7 @@ export function TaskDetailPage() {
           </div>
         )}
 
-        {task.plannedDate && (
+        {!task.convertedHabitId && task.plannedDate && (
           <div className="mt-4 rounded-2xl bg-gray-50 p-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
               Planificación
@@ -136,9 +142,11 @@ export function TaskDetailPage() {
         )}
 
         {task.status === "completed" && <div className="mt-4 rounded-xl bg-green-50 p-3"><p className="text-xs text-green-700">{task.completedAt ? `Completada el ${new Date(task.completedAt).toLocaleString("es-MX")}` : "Completada · Sin fecha registrada"}</p><button type="button" onClick={() => moveTask(task.id, "pending")} className="mt-2 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-green-700">Volver a pendiente</button></div>}
-        <div className="mt-4"><TaskDuration task={task} /></div>
-        <div className="mt-4"><TaskDayToggle task={task} /><div className="mt-2"><TaskDayBadges task={task} /></div></div>
+        {!task.convertedHabitId && <div className="mt-4"><TaskDuration task={task} /></div>}
+        {!task.convertedHabitId && <div className="mt-4"><TaskDayToggle task={task} /><div className="mt-2"><TaskDayBadges task={task} /></div></div>}
+        {task.convertedHabitId && <Link to={`/habits/${task.convertedHabitId}`} className="mt-4 block text-sm font-semibold text-indigo-600">Ver hábito y su programación →</Link>}
         <div className="mt-4"><LabelPicker value={task.labels ?? []} onChange={labels => updateTask(task.id, { labels })} /></div>
+        <TaskSpacePicker task={task} />
         <TaskMetadataPanel key={task.id} task={task} />
 
 
@@ -191,7 +199,7 @@ export function TaskDetailPage() {
 
       <section className="mt-6 lg:max-w-3xl">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500">Acciones</h2>
+          <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500">Trabajar en esta tarea</h2>
           <button
             type="button"
             onClick={() => setEditorOpen(true)}
@@ -200,6 +208,8 @@ export function TaskDetailPage() {
             Editar
           </button>
         </div>
+
+        <TaskProjectLink key={task.id} task={task} />
 
         {task.status !== "completed" && task.status !== "cancelled" && (
           <button
@@ -307,6 +317,7 @@ export function TaskDetailPage() {
         </p>
       </section>
 
+      <button type="button" onClick={() => { updateTask(task.id, { backlog: !isBacklog(task) }); navigate(isBacklog(task) ? "/" : "/backlog"); }} className="mt-6 rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold">{isBacklog(task) ? "Mover a Tareas" : "Mover a Backlog"}</button>
       <button type="button" onClick={() => {
         if (window.confirm(`¿Eliminar “${task.title}”? Esta acción no se puede deshacer.`)) {
           deleteTask(task.id);

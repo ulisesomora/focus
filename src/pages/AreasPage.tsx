@@ -1,3 +1,4 @@
+import { isBacklog } from "../utils/taskBacklog";
 import { useState } from "react";
 import { ArrowDown, ArrowLeft, ArrowUp, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -51,7 +52,7 @@ export function AreasPage() {
   function remove(id: string, label: string) {
     if (areas.length === 1) { setError("Necesitas conservar al menos un área."); return; }
     if (!window.confirm(`¿Eliminar el área “${label}”? Sus tareas quedarán sin área.`)) return;
-    tasks.filter((task) => task.area === id).forEach((task) => updateTask(task.id, { area: undefined }));
+    tasks.filter((task) => !task.spaceId && task.area === id).forEach((task) => updateTask(task.id, { area: undefined }));
     const remaining = areas.filter((area) => area.id !== id);
     const nextFocus = focusIds.filter((item) => item !== id);
     updateSettings({ areas: remaining, focusAreaIds: nextFocus.length ? nextFocus : [remaining[0].id] });
@@ -69,7 +70,7 @@ export function AreasPage() {
         {editing && <p className="mb-3 text-xs leading-5 text-gray-500">Marca hasta cuatro áreas para Hoy. Usa las flechas para ordenar su prioridad.</p>}
         <div className="space-y-2">
           {areas.map((area, index) => {
-            const count = tasks.filter((task) => task.area === area.id && task.status !== "cancelled").length;
+            const count = tasks.filter((task) => !isBacklog(task) && !task.spaceId && task.area === area.id && task.status !== "cancelled").length;
             return (
               <div key={area.id} className="rounded-xl bg-white px-4 py-3">
                 {editing ? (

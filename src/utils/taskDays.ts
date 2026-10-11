@@ -1,3 +1,4 @@
+import { isBacklog } from "./taskBacklog";
 import { useEffect, useState } from "react";
 import type { Task } from "../types/task";
 
@@ -13,7 +14,7 @@ export function taskDays(now = new Date()) {
 }
 
 export function tasksForDay(tasks: Task[], date: string, pendingOnly = false) {
-  return tasks.filter(task => taskWorkDates(task).includes(date) && task.status !== "cancelled"
+  return tasks.filter(task => !isBacklog(task) && taskWorkDates(task).includes(date) && task.status !== "cancelled"
     && (!pendingOnly || task.status !== "completed"))
     .sort((a, b) => Number(a.status === "completed") - Number(b.status === "completed")
       || (a.plannedTime || "99:99").localeCompare(b.plannedTime || "99:99"));
@@ -46,7 +47,7 @@ export function taskWorkDates(task: Task): string[] {
 export function overdueTasks(tasks: Task[], today: string): Task[] {
   return tasks.filter(task => {
     const dates = taskWorkDates(task);
-    return task.status !== "completed" && task.status !== "cancelled"
+    return !isBacklog(task) && task.status !== "completed" && task.status !== "cancelled"
       && dates.length > 0 && dates.every(date => date < today);
   }).sort((a, b) => [...taskWorkDates(a)].sort().slice(-1)[0].localeCompare([...taskWorkDates(b)].sort().slice(-1)[0]));
 }

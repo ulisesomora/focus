@@ -1,6 +1,8 @@
+import { spaceColor } from "../../utils/spaceColors";
 import { useEffect, useState } from "react";
 import {
   CalendarDays,
+  Check,
   Columns3,
   Flame,
   Repeat2,
@@ -20,14 +22,17 @@ import { QuickCapture } from "../capture/QuickCapture";
 import { useApp } from "../../context/AppContext";
 
 const items = [
-  { label: "Tareas", to: "/", icon: Home },
+  { label: "General", to: "/", icon: Home },
+  { label: "Backlog", to: "/backlog", icon: FolderKanban },
   { label: "Hoy", to: "/today", icon: Sun },
+  { label: "Tareas terminadas", to: "/completed-tasks", icon: Check },
+  { label: "Espacios", to: "/spaces", icon: FolderKanban },
   { label: "Etiquetas", to: "/labels", icon: Tag },
   { label: "Agenda", to: "/agenda", icon: CalendarDays },
   { label: "Hábitos", to: "/habits", icon: Flame },
   { label: "Rutinas", to: "/routines", icon: Repeat2 },
   { label: "Metas", to: "/goals", icon: Target },
-  { label: "Proyectos", to: "/projects", icon: FolderKanban },
+  { label: "Proyectos", to: "/projects", icon: Columns3 },
   { label: "Actividad", to: "/activity", icon: History },
   { label: "Estadísticas", to: "/stats", icon: BarChart3 },
   { label: "Revisión semanal", to: "/weekly-review", icon: RefreshCw },
@@ -45,7 +50,7 @@ export function DesktopSidebar() {
     window.addEventListener("focus-open-capture", openCapture);
     return () => window.removeEventListener("focus-open-capture", openCapture);
   }, []);
-  const { account, firebaseConfigured } = useApp();
+  const { account, firebaseConfigured, settings } = useApp();
 
   return (
     <>
@@ -58,11 +63,11 @@ export function DesktopSidebar() {
         <div className="px-4">
           <button
             type="button"
-            onClick={() => ["/", "/today"].includes(location.pathname) ? window.dispatchEvent(new Event("focus-open-task")) : setCaptureOpen(true)}
+            onClick={() => (["/", "/today", "/agenda", "/backlog"].includes(location.pathname) || /^\/spaces\/[^/]+$/.test(location.pathname)) ? window.dispatchEvent(new Event("focus-open-task")) : setCaptureOpen(true)}
             className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gray-900 text-sm font-semibold text-white"
           >
             <Plus size={18} />
-              {["/", "/today"].includes(location.pathname) ? "Nueva tarea" : "Capturar"}
+              {(["/", "/today", "/agenda", "/backlog"].includes(location.pathname) || /^\/spaces\/[^/]+$/.test(location.pathname)) ? "Tarea" : "Capturar"}
           </button>
         </div>
 
@@ -87,6 +92,10 @@ export function DesktopSidebar() {
               </NavLink>
             );
           })}
+          {!!settings.spaces?.length && <div className="mt-3 border-t border-gray-100 pt-3">
+            <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-wide text-gray-400">Mis espacios</p>
+            {settings.spaces.map(space => <NavLink key={space.id} to={`/spaces/${space.id}`} className={({ isActive }) => `flex items-center gap-3 rounded-xl px-3 py-2 text-sm ${isActive ? "bg-gray-100 font-semibold text-gray-900" : "text-gray-500"}`}><span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: spaceColor(space.color) }} /><span className="truncate">{space.name}</span></NavLink>)}
+          </div>}
         </nav>
 
         <div className="border-t border-gray-100 p-4">

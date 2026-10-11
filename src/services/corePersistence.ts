@@ -1,5 +1,8 @@
 import {
   collection,
+  query,
+  where,
+  writeBatch,
   deleteDoc,
   doc,
   getDoc,
@@ -235,6 +238,18 @@ export async function saveTasks(tasks: Task[]) {
   await Promise.all(tasks.map(saveTask));
 }
 
+export async function deleteHabit(id: string) {
+  const userId = await resolveUserId();
+  if (!db || !userId) return;
+  const logs = await getDocs(query(collection(db, "users", userId, "habitLogs"), where("habitId", "==", id)));
+  for (let offset = 0; offset < logs.docs.length; offset += 400) {
+    const batch = writeBatch(db);
+    logs.docs.slice(offset, offset + 400).forEach(item => batch.delete(item.ref));
+    await batch.commit();
+  }
+  await deleteDoc(doc(db, "users", userId, "habits", id));
+}
+
 export async function saveHabit(habit: Habit) {
   // current/completed/streak son valores derivados; no hace falta persistirlos.
   const { current: _current, completed: _completed, streak: _streak, bestStreak: _bestStreak, ...definition } = habit;
@@ -360,6 +375,7 @@ function decodeHabitLog(data: DocumentData): HabitLog {
     date: String(data.date ?? ""),
     value: Number(data.value ?? 0),
     completed: Boolean(data.completed),
+    status: data.status === "skipped" ? "skipped" : data.completed ? "completed" : "pending",
   };
 }
 
@@ -426,4 +442,21 @@ function cleanUndefined<T>(value: T): T {
   }
 
   return value;
+}
+
+export async function deleteProjectData(projectId: string, removedIds: string[], kept: Task[]) {
+  const userId = await resolveUserId();
+  if (!db || !userId) return;
+  const changes = [...removedIds.map(id => ({ id, task: undefined as Task | undefined })), ...kept.map(task => ({ id: task.id, task }))];
+  // Keep each batch below Firestore's write limit; remove the project only after its tasks.
+  for (let index = 0; index < changes.length; index += 450) {
+    const batch = writeBatch(db);
+    for (const change of changes.slice(index, index + 450)) {
+      const ref = doc(db, "users", userId, "tasks", change.id);
+      if (change.task) batch.set(ref, cleanUndefined(change.task)); else batch.delete(ref);
+    }
+    if (index + 450 >= changes.length) batch.delete(doc(db, "users", userId, "projects", projectId));
+    await batch.commit();
+  }
+  if (!changes.length) await deleteDoc(doc(db, "users", userId, "projects", projectId));
 }

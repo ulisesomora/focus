@@ -1,3 +1,4 @@
+import { visibleOutsideProject } from "../utils/projectStructure";
 import { useMemo, useState } from "react";
 import {
   Check,
@@ -36,12 +37,12 @@ export function KanbanPage() {
     useState<BoardStatus>("pending");
 
   const visibleTasks = useMemo(
-    () => tasks.filter((task) => task.status === selectedStatus),
+    () => tasks.filter((task) => !task.spaceId && visibleOutsideProject(task) && task.status === selectedStatus),
     [tasks, selectedStatus],
   );
 
   function countByStatus(status: BoardStatus) {
-    return tasks.filter((task) => task.status === status).length;
+    return tasks.filter((task) => !task.spaceId && visibleOutsideProject(task) && task.status === status).length;
   }
 
   return (

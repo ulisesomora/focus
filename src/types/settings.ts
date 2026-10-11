@@ -9,7 +9,10 @@ export const defaultAreas: AreaDefinition[] = [
   { id: "other", name: "Otros" },
 ];
 
+export type SpaceDefinition = { id: string; name: string; color: string; showInAgenda: boolean; areas?: AreaDefinition[] };
+
 export type AppSettings = {
+  spaces?: SpaceDefinition[];
   labels?: string[];
   desktopTaskOrders?: Record<string, string[]>;
   areas: AreaDefinition[];
@@ -26,6 +29,7 @@ export type AppSettings = {
 };
 
 export const defaultAppSettings: AppSettings = {
+  spaces: [],
   areas: defaultAreas,
   focusAreaIds: defaultAreas.map((area) => area.id),
   weekStart: "monday",

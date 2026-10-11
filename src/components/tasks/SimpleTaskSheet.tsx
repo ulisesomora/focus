@@ -1,3 +1,4 @@
+import { areasForSpace } from "../../utils/taskSpaces";
 import { DayButtons } from "./TaskDayToggle";
 import { LabelPicker } from "../labels/LabelPicker";
 import { useEffect, useState } from "react";
@@ -5,13 +6,12 @@ import { X } from "lucide-react";
 import { BottomSheet } from "../ui/BottomSheet";
 import { TaskEditorSheet, type TaskEditorValue } from "./TaskEditorSheet";
 import { useApp } from "../../context/AppContext";
-import { defaultAreas } from "../../types/settings";
 
-type Props = { initialArea?: string; open: boolean; onClose: () => void; onSave: (value: TaskEditorValue) => void };
+type Props = { initialWorkDates?: string[]; hideProject?: boolean; spaceId?: string; initialArea?: string; open: boolean; onClose: () => void; onSave: (value: TaskEditorValue) => void };
 
-export function SimpleTaskSheet({ open, initialArea, onClose, onSave }: Props) {
+export function SimpleTaskSheet({ open, initialWorkDates, hideProject = false, spaceId, initialArea, onClose, onSave }: Props) {
   const { settings } = useApp();
-  const areas = settings.areas?.length ? settings.areas : defaultAreas;
+  const areas = areasForSpace(settings, spaceId);
   const [title, setTitle] = useState("");
   const [area, setArea] = useState("");
   const [workDates, setWorkDates] = useState<string[]>([]);
@@ -19,7 +19,7 @@ export function SimpleTaskSheet({ open, initialArea, onClose, onSave }: Props) {
   const [detailsOpen, setDetailsOpen] = useState(false);
 
   useEffect(() => {
-    if (open) { setTitle(""); setArea(initialArea ?? ""); setDetailsOpen(false); setLabels([]); setWorkDates([]); }
+    if (open) { setTitle(""); setArea(areas.some(area => area.id === initialArea) ? initialArea! : ""); setDetailsOpen(false); setLabels([]); setWorkDates(initialWorkDates ?? []); }
   }, [open, initialArea]);
 
   function save() {
@@ -52,7 +52,7 @@ export function SimpleTaskSheet({ open, initialArea, onClose, onSave }: Props) {
           <button type="button" onClick={save} disabled={!title.trim()} className="h-11 rounded-xl bg-gray-900 px-5 text-sm font-semibold text-white disabled:bg-gray-200 disabled:text-gray-400">Guardar tarea</button>
         </div>
       </BottomSheet>
-      <TaskEditorSheet initialWorkDates={workDates} open={detailsOpen} initialTitle={title} initialLabels={labels} initialArea={area || undefined} onClose={() => setDetailsOpen(false)} onSave={(value) => { onSave(value); setDetailsOpen(false); setLabels([]); setWorkDates([]); }} />
+      <TaskEditorSheet hideProject={hideProject} spaceId={spaceId} initialWorkDates={workDates} open={detailsOpen} initialTitle={title} initialLabels={labels} initialArea={area || undefined} onClose={() => setDetailsOpen(false)} onSave={(value) => { onSave(value); setDetailsOpen(false); setLabels([]); setWorkDates(initialWorkDates ?? []); }} />
     </>
   );
 }

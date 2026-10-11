@@ -1,163 +1,52 @@
-import { useMemo, useState } from "react";
-import { ArrowLeft, CalendarDays, Circle, Edit3, History } from "lucide-react";
+import { DesktopTodayWorkspace } from "../components/today/DesktopTodayWorkspace";
+import { BottomSheet } from "../components/ui/BottomSheet";
+import { useEffect, useState } from "react";
+import { Columns3 } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-
 import { MobileLayout } from "../components/layout/MobileLayout";
-import { ProjectEditorSheet, type ProjectDraft } from "../components/projects/ProjectEditorSheet";
+import { TaskEditorSheet } from "../components/tasks/TaskEditorSheet";
+import { ProjectStatusBadge } from "../components/projects/ProjectStatusBadge";
+import { SimpleTaskSheet } from "../components/tasks/SimpleTaskSheet";
+import { TaskBadges } from "../components/tasks/TaskMetadataPanel";
 import { useApp } from "../context/AppContext";
-
-const tabs = ["Resumen", "Tareas", "Agenda", "Metas", "Actividad"] as const;
-type Tab = (typeof tabs)[number];
-
+import { projectChildren, projectColumn } from "../utils/projectStructure";
+import type { Task } from "../types/task";
+import { taskSpace } from "../utils/taskSpaces";
+import { spaceColor } from "../utils/spaceColors";
 export function ProjectDetailPage() {
-  const { projectId } = useParams();
   const navigate = useNavigate();
-  const { projects, tasks, goals, activities, updateProject } = useApp();
-  const [tab, setTab] = useState<Tab>("Resumen");
-  const [editorOpen, setEditorOpen] = useState(false);
-
-  const project = projects.find((item) => item.id === projectId);
-  const projectTasks = useMemo(() => tasks.filter((task) => task.project === project?.name), [tasks, project?.name]);
-  const projectGoals = useMemo(() => goals.filter((goal) => goal.project === project?.name), [goals, project?.name]);
-  const scheduled = useMemo(() => projectTasks.filter((task) => task.plannedDate).sort((a, b) => `${a.plannedDate ?? ""}${a.plannedTime ?? ""}`.localeCompare(`${b.plannedDate ?? ""}${b.plannedTime ?? ""}`)), [projectTasks]);
-  const projectActivities = useMemo(
-    () => activities
-      .filter((activity) => activity.project === project?.name || (activity.entityType === "project" && activity.entityId === project?.id))
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()),
-    [activities, project?.id, project?.name],
-  );
-
-  if (!project) {
-    return <MobileLayout><button onClick={() => navigate("/projects")} className="text-sm font-semibold text-gray-600">← Volver</button><div className="mt-8 rounded-3xl bg-white p-8 text-center"><p className="font-bold text-gray-900">Proyecto no encontrado</p></div></MobileLayout>;
-  }
-
-  const openTasks = projectTasks.filter((task) => !["completed", "cancelled"].includes(task.status));
-  const completed = projectTasks.filter((task) => task.status === "completed").length;
-  const taskProgress = projectTasks.length ? Math.round((completed / projectTasks.length) * 100) : 0;
-
-  const currentProjectId = project.id;
-
-  function saveProject(draft: ProjectDraft) {
-    updateProject(currentProjectId, draft);
-  }
-
-  return (
-    <MobileLayout>
-      <header>
-        <div className="flex items-center justify-between gap-3">
-          <button type="button" onClick={() => navigate("/projects")} className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm ring-1 ring-gray-200"><ArrowLeft size={18} /></button>
-          <button type="button" onClick={() => setEditorOpen(true)} className="flex h-10 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700"><Edit3 size={16} /> Editar</button>
-        </div>
-
-        <div className="mt-5 flex items-start gap-3">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white text-2xl shadow-sm ring-1 ring-gray-200">{project.icon ?? "📁"}</div>
-          <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-gray-900">{project.name}</h1>
-            {project.description && <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-500">{project.description}</p>}
-          </div>
-        </div>
-      </header>
-
-      <div className="mt-6 overflow-x-auto pb-1">
-        <div className="flex min-w-max gap-1 rounded-2xl bg-gray-100 p-1">
-          {tabs.map((item) => <button key={item} type="button" onClick={() => setTab(item)} className={`rounded-xl px-3 py-2 text-sm font-semibold ${tab === item ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}>{item}</button>)}
-        </div>
-      </div>
-
-      <div className="mt-5">
-        {tab === "Resumen" && (
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
-            <div className="space-y-4">
-              <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <Stat value={openTasks.length} label="Pendientes" />
-                <Stat value={projectTasks.filter((task) => task.status === "in_progress").length} label="En proceso" />
-                <Stat value={projectGoals.filter((goal) => !goal.completed).length} label="Metas activas" />
-                <Stat value={`${taskProgress}%`} label="Tareas hechas" />
-              </section>
-
-              <section className="rounded-3xl border border-gray-200 bg-white p-5">
-                <div className="flex items-center justify-between gap-3"><h2 className="font-bold text-gray-900">Próximas tareas</h2><button onClick={() => setTab("Tareas")} className="text-sm font-semibold text-gray-500">Ver todas</button></div>
-                <div className="mt-3 space-y-2">
-                  {openTasks.slice(0, 4).map((task) => <TaskRow key={task.id} task={task} />)}
-                  {openTasks.length === 0 && <Empty text="No hay tareas pendientes en este proyecto." />}
-                </div>
-              </section>
-            </div>
-
-            <aside className="space-y-4">
-              <section className="rounded-3xl border border-gray-200 bg-white p-5">
-                <p className="text-xs font-bold uppercase tracking-wide text-gray-400">Resumen</p>
-                <div className="mt-4 space-y-3 text-sm">
-                  <SummaryRow label="Estado" value={project.status === "active" ? "Activo" : project.status === "paused" ? "En pausa" : "Finalizado"} />
-                  <SummaryRow label="Tareas" value={String(projectTasks.length)} />
-                  <SummaryRow label="Metas" value={String(projectGoals.length)} />
-                  <SummaryRow label="Agendadas" value={String(scheduled.length)} />
-                </div>
-              </section>
-            </aside>
-          </div>
-        )}
-
-        {tab === "Tareas" && <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{projectTasks.map((task) => <TaskCard key={task.id} task={task} />)}{projectTasks.length === 0 && <EmptyCard text="Todavía no hay tareas para este proyecto." />}</section>}
-
-        {tab === "Agenda" && <section className="max-w-3xl space-y-3">{scheduled.map((task) => <TaskCard key={task.id} task={task} showSchedule />)}{scheduled.length === 0 && <EmptyCard text="No hay tareas planeadas en este proyecto." />}</section>}
-
-        {tab === "Metas" && <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{projectGoals.map((goal) => <Link key={goal.id} to={`/goals/${goal.id}`} className="rounded-3xl border border-gray-200 bg-white p-5"><div className="flex items-start gap-3"><span className="text-xl">{goal.icon ?? "🎯"}</span><div className="min-w-0"><p className="font-bold text-gray-900">{goal.title}</p>{goal.targetDate && <p className="mt-1 text-xs text-gray-500">Objetivo: {formatDate(goal.targetDate)}</p>}</div></div></Link>)}{projectGoals.length === 0 && <EmptyCard text="No hay metas relacionadas con este proyecto." />}</section>}
-
-        {tab === "Actividad" && (
-          <section className="max-w-3xl rounded-3xl border border-gray-200 bg-white p-5">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="font-bold text-gray-900">Actividad reciente</h2>
-                <p className="mt-1 text-xs text-gray-500">Bitácora real de cambios dentro de este proyecto.</p>
-              </div>
-              <Link to="/activity" className="text-sm font-semibold text-gray-500">Ver todo</Link>
-            </div>
-            <div className="mt-4 space-y-1">
-              {projectActivities.slice(0, 12).map((activity) => (
-                <div key={activity.id} className="flex gap-3 rounded-2xl px-2 py-3 hover:bg-gray-50">
-                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-gray-500"><History size={15} /></div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-gray-800">{activity.message}</p>
-                        <p className="mt-0.5 text-xs text-gray-500">{activity.title}</p>
-                      </div>
-                      <span className="shrink-0 text-[11px] text-gray-400">{formatDateTime(activity.createdAt)}</span>
-                    </div>
-                    {activity.note && <p className="mt-2 rounded-xl bg-orange-50 px-3 py-2 text-xs text-orange-800">{activity.note}</p>}
-                  </div>
-                </div>
-              ))}
-              {projectActivities.length === 0 && <Empty text="Todavía no hay actividad para mostrar." />}
-            </div>
-          </section>
-        )}
-      </div>
-
-      <ProjectEditorSheet open={editorOpen} project={project} onClose={() => setEditorOpen(false)} onSave={saveProject} />
-    </MobileLayout>
-  );
+  const [deleting, setDeleting] = useState(false);
+  const [deleteChildren, setDeleteChildren] = useState(false);
+  const { projectId } = useParams();
+  const { projects, tasks, settings, updateProject, createTask, moveTask, updateTask, deleteTask, deleteProject, initializeProjectTask } = useApp();
+  const project = projects.find(item => item.id === projectId);
+  const [tab, setTab] = useState("Definición"); const [adding, setAdding] = useState(false); const [dragId, setDragId] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<string[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [purpose, setPurpose] = useState(""); const [scope, setScope] = useState(""); const [doneWhen, setDoneWhen] = useState(""); const [name, setName] = useState("");
+  useEffect(() => { setPurpose(project?.purpose ?? ""); setScope(project?.scope ?? project?.description ?? ""); setDoneWhen(project?.doneWhen ?? ""); setName(project?.name ?? ""); setExpanded([]); }, [project]);
+  if (!project) return <MobileLayout><Link to="/projects">← Proyectos</Link><p className="mt-5">Proyecto no encontrado.</p></MobileLayout>;
+  const children = projectChildren(tasks, project); const completed = children.filter(task => task.status === "completed").length;
+  const main = tasks.find(task => task.id === project.mainTaskId); const space = taskSpace(project, settings);
+  const columns = [{ id: "pending", name: "Pendiente" }, { id: "in_progress", name: "En proceso" }, { id: "completed", name: "Terminado" }] as const;
+  function row(task: Task, draggable = false) { return <article key={task.id} draggable={draggable && typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches} onDragStart={event => { setDragId(task.id); event.dataTransfer.setData("text/plain", task.id); }} onDragEnd={() => setDragId(null)} className="rounded-lg border border-gray-200 bg-white p-3"><Link to={`/tasks/${task.id}`} className="block break-words text-sm font-semibold text-gray-800">{task.title}</Link><TaskBadges task={task} includeArea hideProject /><select aria-label={`Estado de ${task.title}`} value={projectColumn(task)} onChange={event => moveTask(task.id, event.target.value as Task["status"])} className="mt-3 w-full lg:hidden rounded border border-gray-200 bg-white p-2 text-xs">{columns.map(column => <option key={column.id} value={column.id}>{column.name}</option>)}</select>{task.status === "paused" && <p className="mt-1 text-xs text-yellow-700">En pausa</p>}{task.status === "review" && <p className="mt-1 text-xs text-gray-500">En revisión</p>}</article>; }
+  return <MobileLayout wideDesktop><div className="mx-auto max-w-6xl">
+    <Link to="/projects" className="text-xs font-semibold text-gray-500">← Proyectos</Link>
+    <header className="mt-4"><h1 className="flex items-center gap-2 text-2xl font-bold"><Columns3 size={24} />{project.name}</h1><p className="mt-2 text-xs font-semibold" style={{ color: space ? spaceColor(space.color) : undefined }}>{space?.name ?? "General"} · <ProjectStatusBadge status={project.status} /></p><p className="mt-2 text-sm text-gray-500">{completed} de {children.length} tareas terminadas</p><div className="mt-2 h-2 overflow-hidden rounded-full bg-gray-200"><div className="h-full bg-indigo-500" style={{ width: `${children.length ? completed / children.length * 100 : 0}%` }} /></div>{main && <Link to={`/tasks/${main.id}`} className="mt-3 inline-block text-xs font-semibold text-indigo-600">Ver tarea principal →</Link>}</header>
+    {!main && <button type="button" onClick={() => initializeProjectTask(project.id)} className="mt-3 rounded-lg border bg-white px-3 py-2 text-xs font-semibold">Crear tarea principal en {space?.name ?? "General"}</button>}
+    <div className="my-5 flex flex-wrap items-center gap-2">{["Definición", "Tareas", "Tablero", "Ajustes"].map(value => <button key={value} type="button" onClick={() => setTab(value)} className={`rounded-lg px-3 py-2 text-sm font-semibold ${tab === value ? "bg-gray-900 text-white" : "bg-white text-gray-500"}`}>{value}</button>)}<button type="button" onClick={() => setAdding(true)} className="ml-auto rounded-lg border bg-white px-3 py-2 text-xs font-semibold">+ Agregar tarea</button></div>
+    {tab === "Definición" && <form className="max-w-3xl space-y-4 rounded-xl bg-white p-4" onSubmit={event => { event.preventDefault(); if (!name.trim()) return; updateProject(project.id, { name: name.trim(), purpose: purpose.trim() || undefined, scope: scope.trim() || undefined, doneWhen: doneWhen.trim() || undefined }); }}><label className="block text-sm font-semibold">Nombre<input required value={name} onChange={event => setName(event.target.value)} className="mt-2 w-full rounded-lg border p-2" /></label>{[{ label: "¿Qué quieres lograr?", value: purpose, set: setPurpose }, { label: "¿Qué incluye este proyecto?", value: scope, set: setScope }, { label: "¿Cómo sabrás que está terminado?", value: doneWhen, set: setDoneWhen }].map(field => <div key={field.label}>{field.value || expanded.includes(field.label) ? <label className="block text-sm font-semibold">{field.label} <span className="font-normal text-gray-400">(opcional)</span><textarea rows={3} value={field.value} onChange={event => field.set(event.target.value)} className="mt-2 w-full rounded-lg border p-2 text-sm font-normal" /></label> : <button type="button" onClick={() => setExpanded(values => [...values, field.label])} className="rounded-lg border px-3 py-2 text-sm font-semibold text-gray-600">+ {field.label}</button>}</div>)}<button className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white">Guardar definición</button></form>}
+    {tab === "Tareas" && <><DesktopTodayWorkspace key={project.id} projectId={project.id} spaceId={project.spaceId} onAreaChange={() => {}} /><div className="grid gap-3 sm:grid-cols-2 lg:hidden">{children.map(task => row(task))}{!children.length && <p className="text-sm text-gray-500">Agrega acciones concretas para empezar. Puedes comenzar por definir el proyecto.</p>}</div></>}
+    {tab === "Tablero" && <><p className="mb-3 hidden text-sm text-gray-500 lg:block">Arrastra las tareas entre columnas para cambiar su estado.</p><div className="grid gap-3 lg:grid-cols-3">{columns.map(column => <section key={column.id} onDragOver={event => { if (dragId) event.preventDefault(); }} onDrop={event => { event.preventDefault(); const task = children.find(item => item.id === dragId); if (task) moveTask(task.id, column.id); setDragId(null); }} className="rounded-xl border border-gray-200 bg-gray-100 p-3"><h2 className="mb-3 text-sm font-bold">{column.name} · {children.filter(task => projectColumn(task) === column.id).length}</h2><div className="space-y-2">{children.filter(task => projectColumn(task) === column.id).map(task => row(task, true))}</div></section>)}</div></>}
+    {tab === "Ajustes" && <section><h2 className="mb-3 text-lg font-bold">Ajustes del proyecto</h2><div className="flex flex-wrap items-center gap-2"><ProjectStatusBadge status={project.status} />{project.status !== "completed" && ([{ status: "active", label: "Activar" }, { status: "paused", label: "Pausar" }, { status: "stopped", label: "Detener" }] as const).map(item => <button type="button" key={item.status} onClick={() => updateProject(project.id, { status: item.status })} className="rounded-lg border bg-white px-3 py-2 text-sm" disabled={project.status === item.status}>{item.label}</button>)}</div><h3 className="mb-3 mt-6 font-semibold">Editar o eliminar tareas</h3><div className="space-y-2">{children.map(task => <div key={task.id} className="flex flex-wrap items-center gap-2 rounded-lg border bg-white p-3"><span className="min-w-0 flex-1 break-words text-sm">{task.title}</span><button type="button" onClick={() => setEditingId(task.id)} className="rounded border px-3 py-2 text-xs">Editar</button><button type="button" onClick={() => { if (window.confirm(`¿Eliminar la tarea «${task.title}»?`)) deleteTask(task.id); }} className="rounded border border-red-200 px-3 py-2 text-xs text-red-700">Eliminar</button></div>)}{!children.length && <p className="text-sm text-gray-500">Este proyecto aún no tiene tareas.</p>}</div><footer className="mt-6 flex flex-wrap gap-2 border-t pt-4">{!!children.length && completed === children.length && project.status !== "completed" && <p className="w-full text-sm text-green-700">Todas las tareas están terminadas. Revisa el resultado antes de finalizar el proyecto.</p>}<button type="button" onClick={() => { if (project.status === "completed" || window.confirm("¿Finalizar el proyecto? Sus tareas pendientes conservarán su estado.")) updateProject(project.id, { status: project.status === "completed" ? "active" : "completed" }); }} className="rounded-lg border bg-white px-3 py-2 text-xs font-semibold">{project.status === "completed" ? "Reabrir proyecto" : "Finalizar proyecto"}</button><button type="button" onClick={() => { setDeleteChildren(false); setDeleting(true); }} className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">Eliminar proyecto</button></footer></section>}
+    <TaskEditorSheet open={!!editingId} task={tasks.find(task => task.id === editingId)} spaceId={tasks.find(task => task.id === editingId)?.spaceId} onClose={() => setEditingId(null)} onSave={value => { if (editingId) updateTask(editingId, value); setEditingId(null); }} />
+    <BottomSheet open={deleting} onClose={() => setDeleting(false)} ariaLabel="Eliminar proyecto">
+      <h2 className="text-xl font-bold">Eliminar {project.name}</h2>
+      <p className="mt-2 text-sm text-gray-600">Se eliminará el proyecto y su tarea principal. Puedes conservar sus tareas como tareas normales en General o en el espacio donde están.</p>
+      <label className="mt-4 flex items-start gap-2 text-sm"><input type="checkbox" checked={deleteChildren} onChange={event => setDeleteChildren(event.target.checked)} />Eliminar también todas las tareas del proyecto (incluidas las terminadas).</label>
+      <p className="mt-3 text-xs text-red-700">Esta acción no se puede deshacer.</p>
+      <div className="mt-5 flex gap-3"><button type="button" onClick={() => { deleteProject(project.id, deleteChildren); navigate("/projects"); }} className="rounded-lg bg-red-600 px-4 py-2 font-semibold text-white">Eliminar proyecto</button><button type="button" onClick={() => setDeleting(false)}>Cancelar</button></div>
+    </BottomSheet>
+    <SimpleTaskSheet hideProject spaceId={project.spaceId} initialArea={project.area} open={adding} onClose={() => setAdding(false)} onSave={value => createTask({ ...value, status: "pending", spaceId: project.spaceId, projectId: project.id, projectRole: "child", showOutsideProject: false, kind: "task", project: project.name })} />
+  </div></MobileLayout>;
 }
-
-function Stat({ value, label }: { value: string | number; label: string }) {
-  return <div className="rounded-2xl border border-gray-200 bg-white p-4"><p className="text-xl font-bold text-gray-900">{value}</p><p className="mt-1 text-xs text-gray-500">{label}</p></div>;
-}
-
-function SummaryRow({ label, value }: { label: string; value: string }) {
-  return <div className="flex items-center justify-between gap-3"><span className="text-gray-500">{label}</span><span className="font-semibold text-gray-900">{value}</span></div>;
-}
-
-function TaskRow({ task }: { task: any }) {
-  return <Link to={`/tasks/${task.id}`} className="flex items-center gap-3 rounded-2xl bg-gray-50 px-3 py-3"><Circle size={16} className="shrink-0 text-gray-400" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-gray-800">{task.title}</p><p className="mt-0.5 text-xs text-gray-500">{statusText(task.status)}</p></div></Link>;
-}
-
-function TaskCard({ task, showSchedule = false }: { task: any; showSchedule?: boolean }) {
-  return <Link to={`/tasks/${task.id}`} className="rounded-3xl border border-gray-200 bg-white p-4"><p className="font-semibold text-gray-900">{task.title}</p><div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-500"><span className="rounded-lg bg-gray-100 px-2 py-1">{statusText(task.status)}</span>{task.priority && <span className="rounded-lg bg-gray-100 px-2 py-1">{task.priority === "high" ? "Alta" : task.priority === "medium" ? "Media" : "Baja"}</span>}{showSchedule && task.plannedDate && <span className="inline-flex items-center gap-1 rounded-lg bg-gray-100 px-2 py-1"><CalendarDays size={12} /> {formatDate(task.plannedDate)}{task.plannedTime ? ` · ${task.plannedTime}` : ""}</span>}</div></Link>;
-}
-
-function Empty({ text }: { text: string }) { return <p className="py-4 text-sm text-gray-400">{text}</p>; }
-function EmptyCard({ text }: { text: string }) { return <div className="rounded-3xl border border-dashed border-gray-300 bg-white p-6 text-sm text-gray-500">{text}</div>; }
-function statusText(status: string) { return status === "backlog" ? "Backlog" : status === "pending" ? "Pendiente" : status === "in_progress" ? "En proceso" : status === "paused" ? "En pausa" : status === "review" ? "En revisión" : status === "completed" ? "Finalizada" : "Cancelada"; }
-function formatDate(value: string) { const [year, month, day] = value.split("-").map(Number); return new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short", year: year !== new Date().getFullYear() ? "numeric" : undefined }).format(new Date(year, month - 1, day)); }
-function formatDateTime(value: Date) { return new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }).format(value); }

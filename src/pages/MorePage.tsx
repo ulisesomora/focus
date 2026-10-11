@@ -1,5 +1,6 @@
 import {
   ChevronRight,
+  Check,
   Columns3,
   Flame,
   Repeat2,
@@ -26,6 +27,9 @@ export function MorePage() {
       </header>
 
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
+        <Link to="/backlog" className="flex items-center gap-3 border-b border-gray-100 px-4 py-4"><FolderKanban size={20} /><span className="flex-1 font-semibold text-gray-900">Backlog</span><ChevronRight size={18} /></Link>
+        <Link to="/completed-tasks" className="flex items-center gap-3 border-b border-gray-100 px-4 py-4"><Check size={20} /><div className="flex-1"><p className="font-semibold text-gray-900">Tareas terminadas</p><p className="mt-1 text-xs text-gray-500">Revisa, regresa a pendientes o elimina.</p></div><ChevronRight size={18} /></Link>
+        <Link to="/spaces" className="flex items-center gap-3 border-b border-gray-100 px-4 py-4"><FolderKanban size={20} /><span className="flex-1 font-semibold text-gray-900">Espacios</span><ChevronRight size={18} /></Link>
         <Link to="/labels" className="flex items-center gap-3 border-b border-gray-100 px-4 py-4"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 text-gray-700"><Tag size={20} /></div><div className="min-w-0 flex-1"><p className="font-semibold text-gray-900">Etiquetas</p><p className="mt-0.5 text-xs text-gray-500">Crea, modifica y elimina etiquetas.</p></div><ChevronRight size={18} className="text-gray-400" /></Link>
         <Link to="/areas" className="flex items-center gap-3 border-b border-gray-100 px-4 py-4">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 text-gray-700"><Layers3 size={20} /></div>
@@ -41,9 +45,9 @@ export function MorePage() {
           </div>
 
           <div className="min-w-0 flex-1">
-            <p className="font-semibold text-gray-900">Tareas</p>
+            <p className="font-semibold text-gray-900">General</p>
             <p className="mt-0.5 text-xs text-gray-500">
-              Todas tus tareas, áreas y etiquetas.
+              Tus tareas generales, áreas y etiquetas.
             </p>
           </div>
 

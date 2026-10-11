@@ -1,3 +1,4 @@
+import { areasForSpace } from "../../utils/taskSpaces";
 import { DurationPicker } from "./TaskDuration";
 import { DayButtons } from "./TaskDayToggle";
 import { LabelPicker } from "../labels/LabelPicker";
@@ -6,7 +7,6 @@ import { Plus, Trash2, X } from "lucide-react";
 
 import { BottomSheet } from "../ui/BottomSheet";
 import { useApp } from "../../context/AppContext";
-import { defaultAreas } from "../../types/settings";
 import type { Task, TaskArea, TaskPriority, TaskSubtask } from "../../types/task";
 
 export type TaskEditorValue = {
@@ -26,8 +26,10 @@ export type TaskEditorValue = {
 };
 
 type TaskEditorSheetProps = {
+  spaceId?: string;
   inline?: boolean;
   hideLabels?: boolean;
+  hideProject?: boolean;
   hideArea?: boolean;
   open: boolean;
   task?: Task;
@@ -43,8 +45,10 @@ const emptyLabels: string[] = [];
 
 export function TaskEditorSheet({
   open,
+  spaceId,
   inline = false,
   hideLabels = false,
+  hideProject = false,
   hideArea = false,
   task,
   initialLabels = emptyLabels,
@@ -55,7 +59,7 @@ export function TaskEditorSheet({
   onSave,
 }: TaskEditorSheetProps) {
   const { settings } = useApp();
-  const areas = settings.areas?.length ? settings.areas : defaultAreas;
+  const areas = areasForSpace(settings, task?.spaceId ?? spaceId);
   const [title, setTitle] = useState("");
   const [project, setProject] = useState("");
   const [area, setArea] = useState<TaskArea>("");
@@ -76,7 +80,8 @@ export function TaskEditorSheet({
     if (!open) return;
     setTitle(task?.title ?? initialTitle);
     setProject(task?.project ?? "");
-    setArea(task?.area ?? initialArea ?? "");
+    const selectedArea = task?.area ?? initialArea;
+    setArea(areas.some(area => area.id === selectedArea) ? selectedArea! : "");
     setPriority(task?.priority ?? "");
     setWorkDates(task?.workDates ?? initialWorkDates);
     setPlannedDate(task?.plannedDate ?? "");
@@ -108,7 +113,7 @@ export function TaskEditorSheet({
     onSave({
       comments: commentText.trim() ? [...comments, { id: crypto.randomUUID(), text: commentText.trim(), createdAt: new Date().toISOString() }] : comments,
       title: cleanTitle,
-      project: project.trim() || undefined,
+      project: task?.projectId ? task.project : project.trim() || undefined,
       ...(hideArea ? {} : { area: area || undefined }),
       priority: priority || undefined,
       description: description.trim() || undefined,
@@ -166,13 +171,12 @@ export function TaskEditorSheet({
         <select value={area} onChange={(event) => setArea(event.target.value as TaskArea)} className="mt-2 h-12 w-full rounded-2xl border border-gray-200 bg-white px-4 text-sm font-normal outline-none">
           <option value="">Sin área</option>
           {areas.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-          {area && !areas.some((item) => item.id === area) && <option value={area}>Área anterior</option>}
         </select>
       </label>
       )}
 
       <div className={`mt-5 grid gap-3 ${inline ? "grid-cols-1 2xl:grid-cols-2" : "grid-cols-2"}`}>
-        <label className="block text-sm font-semibold text-gray-700">
+        {!hideProject && !task?.projectId && <label className="block text-sm font-semibold text-gray-700">
           Proyecto
           <input
             value={project}
@@ -180,7 +184,7 @@ export function TaskEditorSheet({
             placeholder="Opcional"
             className="mt-2 h-12 w-full rounded-2xl border border-gray-200 px-3 text-sm font-normal outline-none focus:border-gray-400"
           />
-        </label>
+        </label>}
 
         <label className="block text-sm font-semibold text-gray-700">
           Prioridad

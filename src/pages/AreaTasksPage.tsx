@@ -1,3 +1,5 @@
+import { isBacklog } from "../utils/taskBacklog";
+import { visibleOutsideProject } from "../utils/projectStructure";
 import { ArrowLeft, Check, ChevronRight } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { MobileLayout } from "../components/layout/MobileLayout";
@@ -8,7 +10,7 @@ export function AreaTasksPage() {
   const { areaId } = useParams();
   const { tasks, settings, moveTask } = useApp();
   const area = (settings.areas?.length ? settings.areas : defaultAreas).find((item) => item.id === areaId);
-  const items = tasks.filter((task) => task.area === areaId && task.status !== "backlog" && task.status !== "cancelled")
+  const items = tasks.filter((task) => !task.spaceId && visibleOutsideProject(task) && task.area === areaId && !isBacklog(task) && task.status !== "cancelled")
     .sort((a, b) => Number(a.status === "completed") - Number(b.status === "completed"));
   return (
     <MobileLayout>

@@ -1,87 +1,23 @@
 import { useEffect, useState } from "react";
-import { X } from "lucide-react";
-
-import type { Project, ProjectStatus } from "../../types/project";
+import { Columns3, X } from "lucide-react";
+import type { Project } from "../../types/project";
 import { BottomSheet } from "../ui/BottomSheet";
-
+import { useApp } from "../../context/AppContext";
+import { areasForSpace } from "../../utils/taskSpaces";
 export type ProjectDraft = Omit<Project, "id" | "createdAt">;
-
-type Props = {
-  open: boolean;
-  project?: Project;
-  onClose: () => void;
-  onSave: (project: ProjectDraft) => void;
-};
-
-export function ProjectEditorSheet({ open, project, onClose, onSave }: Props) {
-  const [name, setName] = useState("");
-  const [icon, setIcon] = useState("📁");
-  const [description, setDescription] = useState("");
-  const [status, setStatus] = useState<ProjectStatus>("active");
-
-  useEffect(() => {
-    if (!open) return;
-    setName(project?.name ?? "");
-    setIcon(project?.icon ?? "📁");
-    setDescription(project?.description ?? "");
-    setStatus(project?.status ?? "active");
-  }, [open, project]);
-
-  function handleSave() {
-    const cleanName = name.trim();
-    if (!cleanName) return;
-
-    onSave({
-      name: cleanName,
-      icon: icon.trim() || "📁",
-      description: description.trim() || undefined,
-      status,
-    });
-    onClose();
-  }
-
-  return (
-    <BottomSheet open={open} onClose={onClose} ariaLabel={project ? "Editar proyecto" : "Nuevo proyecto"} maxWidthClass="max-w-xl">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-gray-900">{project ? "Editar proyecto" : "Nuevo proyecto"}</h2>
-          <p className="mt-1 text-sm text-gray-500">Agrupa tareas, agenda y metas en un mismo contexto.</p>
-        </div>
-        <button type="button" onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-gray-500">
-          <X size={18} />
-        </button>
-      </div>
-
-      <div className="mt-5 grid gap-3 sm:grid-cols-[84px_1fr]">
-        <label className="block text-sm font-semibold text-gray-700">
-          Icono
-          <input value={icon} onChange={(e) => setIcon(e.target.value)} className="mt-2 h-12 w-full rounded-2xl border border-gray-200 px-3 text-center text-xl outline-none" />
-        </label>
-        <label className="block text-sm font-semibold text-gray-700">
-          Nombre
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Trabajo" className="mt-2 h-12 w-full rounded-2xl border border-gray-200 px-4 text-sm font-normal outline-none focus:border-gray-400" />
-        </label>
-      </div>
-
-      <label className="mt-4 block text-sm font-semibold text-gray-700">
-        Descripción
-        <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Qué cosas pertenecen a este proyecto..." className="mt-2 min-h-24 w-full resize-none rounded-2xl border border-gray-200 p-4 text-sm font-normal outline-none" />
-      </label>
-
-      <div className="mt-4">
-        <p className="text-sm font-semibold text-gray-700">Estado</p>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {(["active", "paused", "completed"] as ProjectStatus[]).map((value) => (
-            <button key={value} type="button" onClick={() => setStatus(value)} className={`rounded-xl border px-3 py-2 text-sm font-semibold ${status === value ? "border-gray-900 bg-gray-900 text-white" : "border-gray-200 bg-white text-gray-600"}`}>
-              {value === "active" ? "Activo" : value === "paused" ? "En pausa" : "Finalizado"}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <button type="button" disabled={!name.trim()} onClick={handleSave} className="mt-6 h-12 w-full rounded-2xl bg-gray-900 px-5 text-sm font-semibold text-white disabled:bg-gray-200 disabled:text-gray-400 sm:ml-auto sm:block sm:w-auto sm:min-w-36">
-        {project ? "Guardar cambios" : "Crear proyecto"}
-      </button>
-    </BottomSheet>
-  );
+export function ProjectEditorSheet({ open, project, onClose, onSave }: { open: boolean; project?: Project; onClose: () => void; onSave: (draft: ProjectDraft) => void }) {
+  const { settings } = useApp();
+  const [name, setName] = useState(""); const [description, setDescription] = useState("");
+  const [spaceId, setSpaceId] = useState(""); const [area, setArea] = useState("");
+  useEffect(() => { if (open) { setName(project?.name ?? ""); setDescription(project?.description ?? ""); setSpaceId(project?.spaceId ?? ""); setArea(project?.area ?? ""); } }, [open, project]);
+  return <BottomSheet open={open} onClose={onClose} ariaLabel={project ? "Editar proyecto" : "Nuevo proyecto"}>
+    <div className="flex items-center gap-2"><Columns3 size={22} /><h2 className="flex-1 text-xl font-bold">{project ? "Editar proyecto" : "Nuevo proyecto"}</h2><button type="button" aria-label="Cerrar" onClick={onClose}><X size={18} /></button></div>
+    <form className="mt-4 space-y-4" onSubmit={event => { event.preventDefault(); if (!name.trim()) return; onSave({ ...project, name: name.trim(), description: description.trim() || undefined, status: project?.status ?? "active", spaceId: spaceId || undefined, area: area || undefined }); onClose(); }}>
+      <label className="block text-sm font-semibold">Nombre<input required value={name} onChange={event => setName(event.target.value)} className="mt-2 w-full rounded-lg border p-3" /></label>
+      <label className="block text-sm font-semibold">Descripción<textarea value={description} onChange={event => setDescription(event.target.value)} className="mt-2 w-full rounded-lg border p-3" /></label>
+      {!project && <><label className="block text-sm font-semibold">Lugar<select value={spaceId} onChange={event => { setSpaceId(event.target.value); setArea(""); }} className="mt-2 w-full rounded-lg border bg-white p-3"><option value="">General</option>{settings.spaces?.map(space => <option key={space.id} value={space.id}>{space.name}</option>)}</select></label><label className="block text-sm font-semibold">Área<select value={area} onChange={event => setArea(event.target.value)} className="mt-2 w-full rounded-lg border bg-white p-3"><option value="">Sin área</option>{areasForSpace(settings, spaceId || undefined).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label></>}
+      {project && <p className="text-xs text-gray-500">Para mover el proyecto de espacio, abre su tarea principal.</p>}
+      <button className="rounded-lg bg-gray-900 px-4 py-3 text-sm font-semibold text-white">{project ? "Guardar" : "Crear proyecto"}</button>
+    </form>
+  </BottomSheet>;
 }

@@ -1,3 +1,5 @@
+import { buildTaskProject, projectChildren, projectDeletion } from "../utils/projectStructure";
+import { prepareTaskSpaceMove } from "../utils/taskSpaces";
 import { labelKey, uniqueLabels } from "../utils/labels";
 import {
   createContext,
@@ -28,8 +30,10 @@ import { LoginScreen } from "../components/auth/LoginScreen";
 import type { User } from "firebase/auth";
 import {
   connectCorePersistence,
+  deleteProjectData,
   deleteCapture as deletePersistedCapture,
   deleteTask as deletePersistedTask,
+  deleteHabit as deletePersistedHabit,
   saveActivity,
   saveCapture,
   saveGoal,
@@ -99,15 +103,21 @@ type AppContextType = {
   pauseTask: (taskId: string, reason: string, note?: string) => void;
   setActiveTask: (taskId: string) => void;
   addHabit: (habit: Omit<Habit, "id">) => string;
-  toggleHabit: (habitId: string) => void;
-  incrementHabit: (habitId: string, amount?: number) => void;
+  deleteHabit: (habitId: string) => void;
+  updateHabit: (habitId: string, changes: Partial<Omit<Habit, "id">>) => void;
+  skipHabit: (habitId: string, date?: string) => void;
+  toggleHabit: (habitId: string, date?: string) => void;
+  incrementHabit: (habitId: string, amount?: number, date?: string) => void;
   addRoutine: (routine: Omit<Routine, "id">) => void;
   updateRoutine: (routineId: string, patch: Omit<Routine, "id">) => void;
   addGoal: (goal: Omit<Goal, "id" | "createdAt">) => void;
   updateGoal: (goalId: string, patch: GoalPatch) => void;
   toggleGoalMilestone: (goalId: string, milestoneId: string) => void;
   setGoalCompleted: (goalId: string, completed: boolean) => void;
-  addProject: (project: Omit<Project, "id" | "createdAt">) => void;
+  addProject: (project: Omit<Project, "id" | "createdAt">) => string;
+  initializeProjectTask: (projectId: string) => void;
+  convertTaskToProject: (taskId: string, splitSubtasks: boolean) => string | undefined;
+  deleteProject: (projectId: string, deleteChildren: boolean) => void;
   updateProject: (projectId: string, patch: ProjectPatch) => void;
   addActivity: (activity: Omit<Activity, "id" | "createdAt">) => void;
   createLabel: (name: string) => string;
@@ -296,6 +306,7 @@ export function AppProvider({ children }: AppProviderProps) {
     const id = crypto.randomUUID();
     const newTask: Task = {
       ...task,
+      backlog: task.backlog ?? task.status === "backlog",
       id,
       createdAt: new Date(),
     };
@@ -398,6 +409,17 @@ export function AppProvider({ children }: AppProviderProps) {
 
   function updateTask(taskId: string, patch: TaskPatch) {
     const currentTask = tasks.find((task) => task.id === taskId);
+    if (patch.backlog === false && currentTask?.status === "backlog") patch = { ...patch, status: "pending" };
+    if (patch.backlog === true) patch = { ...patch, isActive: false };
+    let projectSettings = settings;
+    if (currentTask?.projectRole === "main") {
+      if (patch.title !== undefined) patch = { ...patch, project: patch.title };
+      if (Object.prototype.hasOwnProperty.call(patch, "spaceId")) {
+        const move = prepareTaskSpaceMove(settings, currentTask, patch.spaceId);
+        patch = { ...patch, ...move.patch };
+        if (move.settingsPatch) projectSettings = { ...settings, ...move.settingsPatch };
+      }
+    }
     if (patch.status && patch.status !== currentTask?.status) {
       patch = { ...patch, completedAt: patch.status === "completed" ? new Date() : undefined };
     }
@@ -409,6 +431,22 @@ export function AppProvider({ children }: AppProviderProps) {
 
     if (!currentTask) return;
     persistSafely(saveTask({ ...currentTask, ...patch }));
+    if (currentTask.projectRole === "main" && currentTask.projectId) {
+      const project = projects.find(item => item.id === currentTask.projectId);
+      if (project) {
+        const nextProject = { ...project, ...(patch.title !== undefined ? { name: patch.title } : {}), ...(Object.prototype.hasOwnProperty.call(patch, "spaceId") ? { spaceId: patch.spaceId } : {}), ...(Object.prototype.hasOwnProperty.call(patch, "area") ? { area: patch.area } : {}) };
+        setProjects(current => current.map(item => item.id === project.id ? nextProject : item)); persistSafely(saveProject(nextProject));
+        let nextSettings = projectSettings;
+        const children = projectChildren(tasks, project).map(child => {
+          const move = !child.showOutsideProject && Object.prototype.hasOwnProperty.call(patch, "spaceId") ? prepareTaskSpaceMove(nextSettings, child, patch.spaceId) : undefined;
+          if (move?.settingsPatch) nextSettings = { ...nextSettings, ...move.settingsPatch };
+          return { ...child, ...(move?.patch ?? {}), projectId: project.id, projectRole: "child" as const, project: nextProject.name };
+        });
+        if (nextSettings !== settings) updateSettings(nextSettings);
+        const changed = new Map(children.map(child => [child.id, child]));
+        setTasks(current => current.map(item => changed.get(item.id) ?? item)); persistSafely(saveTasks(children));
+      }
+    }
     const nextTitle = patch.title ?? currentTask.title;
     const nextProject = patch.project ?? currentTask.project;
 
@@ -450,6 +488,10 @@ export function AppProvider({ children }: AppProviderProps) {
           completedAt: status === "completed" ? (currentTask?.status === "completed" ? currentTask.completedAt : new Date()) : undefined,
         }),
       );
+    }
+    if (currentTask?.projectRole === "main" && currentTask.projectId) {
+      const project = projects.find(item => item.id === currentTask.projectId);
+      if (project) { const next = { ...project, status: status === "completed" ? "completed" as const : status === "paused" ? "paused" as const : "active" as const }; setProjects(current => current.map(item => item.id === project.id ? next : item)); persistSafely(saveProject(next)); }
     }
     if (currentTask && currentTask.status !== status) {
       logEntityActivity(
@@ -547,11 +589,32 @@ export function AppProvider({ children }: AppProviderProps) {
     return id;
   }
 
-  function toggleHabit(habitId: string) {
+  function deleteHabit(habitId: string) {
+    setHabitDefinitions(current => current.filter(habit => habit.id !== habitId));
+    setHabitLogs(current => current.filter(log => log.habitId !== habitId));
+    persistSafely(deletePersistedHabit(habitId));
+  }
+
+  function updateHabit(habitId: string, changes: Partial<Omit<Habit, "id">>) {
+    const habit = habitDefinitions.find(item => item.id === habitId);
+    if (!habit) return;
+    const next = { ...habit, ...changes, id: habitId };
+    setHabitDefinitions(current => current.map(item => item.id === habitId ? next : item));
+    persistSafely(saveHabit(next));
+  }
+
+  function skipHabit(habitId: string, date = getDateKey()) {
+    if (!habitDefinitions.some(item => item.id === habitId)) return;
+    const existing = getHabitLog(habitLogs, habitId, date);
+    const nextLog: HabitLog = { habitId, date, value: 0, completed: false, status: existing?.status === "skipped" ? "pending" : "skipped" };
+    setHabitLogs(current => upsertHabitLog(current, nextLog));
+    persistSafely(saveHabitLog(nextLog));
+  }
+
+  function toggleHabit(habitId: string, date = getDateKey()) {
     const habit = habitDefinitions.find((item) => item.id === habitId);
     if (!habit || habit.type !== "complete") return;
 
-    const date = getDateKey();
     const existing = getHabitLog(habitLogs, habitId, date);
     const completed = !existing?.completed;
 
@@ -566,11 +629,10 @@ export function AppProvider({ children }: AppProviderProps) {
     logEntityActivity("habit", habitId, completed ? "completed" : "updated", habit.title, completed ? "Completaste el hábito" : "Marcaste el hábito como pendiente");
   }
 
-  function incrementHabit(habitId: string, amount = 1) {
+  function incrementHabit(habitId: string, amount = 1, date = getDateKey()) {
     const habit = habitDefinitions.find((item) => item.id === habitId);
     if (!habit || habit.type === "complete") return;
 
-    const date = getDateKey();
     const existing = getHabitLog(habitLogs, habitId, date);
     const next = Math.max(0, (existing?.value ?? 0) + amount);
     const target = habit.target ?? 1;
@@ -757,10 +819,44 @@ export function AppProvider({ children }: AppProviderProps) {
 
   function addProject(project: Omit<Project, "id" | "createdAt">) {
     const id = crypto.randomUUID();
-    const nextProject: Project = { ...project, id, createdAt: new Date() };
-    setProjects((current) => [nextProject, ...current]);
+    const mainTaskId = createTask({ title: project.name, description: project.description, status: project.status === "completed" ? "completed" : "pending", spaceId: project.spaceId, area: project.area, kind: "project", projectId: id, projectRole: "main", project: project.name });
+    const nextProject: Project = { ...project, id, mainTaskId, createdAt: new Date() };
+    setProjects(current => [nextProject, ...current]);
     persistSafely(saveProject(nextProject));
     logEntityActivity("project", id, "created", project.name, "Creaste el proyecto", project.name);
+    return id;
+  }
+
+  function initializeProjectTask(projectId: string) {
+    const project = projects.find(item => item.id === projectId);
+    if (!project || tasks.some(task => task.id === project.mainTaskId)) return;
+    const id = createTask({ title: project.name, description: project.description, status: project.status === "completed" ? "completed" : "pending", spaceId: project.spaceId, area: project.area, projectId: project.id, projectRole: "main", project: project.name, kind: "project" });
+    const next = { ...project, mainTaskId: id }; setProjects(current => current.map(item => item.id === projectId ? next : item)); persistSafely(saveProject(next));
+    const children = projectChildren(tasks, project).map(task => ({ ...task, projectId: project.id, projectRole: "child" as const, spaceId: project.spaceId }));
+    const byId = new Map(children.map(task => [task.id, task])); setTasks(current => current.map(task => byId.get(task.id) ?? task)); persistSafely(saveTasks(children));
+  }
+
+  function convertTaskToProject(taskId: string, splitSubtasks: boolean) {
+    const task = tasks.find(item => item.id === taskId);
+    if (!task || task.projectRole === "child") return undefined;
+    if (task.projectRole === "main" && task.projectId) return task.projectId;
+    const result = buildTaskProject(task, splitSubtasks, crypto.randomUUID(), () => crypto.randomUUID());
+    setProjects(current => [result.project, ...current]);
+    setTasks(current => [...result.children, ...current.map(item => item.id === taskId ? result.main : item)]);
+    persistSafely(saveProject(result.project));
+    persistSafely(saveTasks([result.main, ...result.children]));
+    logEntityActivity("project", result.project.id, "created", result.project.name, "Convertiste la tarea en proyecto", result.project.name);
+    return result.project.id;
+  }
+
+  function deleteProject(projectId: string, deleteChildren: boolean) {
+    const project = projects.find(item => item.id === projectId);
+    if (!project) return;
+    const { removedIds, kept } = projectDeletion(tasks, project, deleteChildren);
+    const replacements = new Map(kept.map(task => [task.id, task]));
+    setTasks(current => current.filter(task => !removedIds.includes(task.id)).map(task => replacements.get(task.id) ?? task));
+    setProjects(current => current.filter(item => item.id !== projectId));
+    persistSafely(deleteProjectData(projectId, removedIds, kept));
   }
 
   function updateProject(projectId: string, patch: ProjectPatch) {
@@ -771,15 +867,22 @@ export function AppProvider({ children }: AppProviderProps) {
         project.id === projectId && nextProject ? nextProject : project,
       ),
     );
-    if (nextProject) persistSafely(saveProject(nextProject));
+    if (nextProject) {
+      persistSafely(saveProject(nextProject));
+      const main = tasks.find(task => task.id === nextProject.mainTaskId);
+      if (main) {
+        const nextMain = { ...main, title: nextProject.name, project: nextProject.name, status: nextProject.status === "completed" ? "completed" as const : main.status === "completed" ? "pending" as const : main.status, completedAt: nextProject.status === "completed" ? main.completedAt ?? new Date() : undefined };
+        setTasks(current => current.map(task => task.id === main.id ? nextMain : task)); persistSafely(saveTask(nextMain));
+      }
+    }
 
     if (currentProject?.name && patch.name && patch.name !== currentProject.name) {
       const renamedTasks = tasks
-        .filter((task) => task.project === currentProject.name)
+        .filter((task) => task.id !== nextProject?.mainTaskId && (task.projectId === projectId || (!task.projectId && task.project === currentProject.name)))
         .map((task) => ({ ...task, project: patch.name }));
       setTasks((current) =>
         current.map((task) =>
-          task.project === currentProject.name ? { ...task, project: patch.name } : task,
+          (task.projectId === projectId || (!task.projectId && task.project === currentProject.name)) ? { ...task, project: patch.name } : task,
         ),
       );
       persistSafely(saveTasks(renamedTasks));
@@ -842,6 +945,9 @@ export function AppProvider({ children }: AppProviderProps) {
         pauseTask,
         setActiveTask,
         addHabit,
+        deleteHabit,
+        updateHabit,
+        skipHabit,
         toggleHabit,
         incrementHabit,
         addRoutine,
@@ -851,7 +957,10 @@ export function AppProvider({ children }: AppProviderProps) {
         toggleGoalMilestone,
         setGoalCompleted,
         addProject,
+        convertTaskToProject,
+        initializeProjectTask,
         updateProject,
+        deleteProject,
         addActivity,
         createLabel, renameLabel, deleteLabel,
         updateSettings,

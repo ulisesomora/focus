@@ -8,6 +8,9 @@ export type HabitFrequency =
 export type Habit = {
   id: string;
   sourceTaskId?: string;
+  spaceId?: string;
+  plannedTime?: string;
+  estimatedMinutes?: number;
   area?: string;
   labels?: string[];
   description?: string;
@@ -30,4 +33,5 @@ export type HabitLog = {
   date: string;
   value: number;
   completed: boolean;
+  status?: "pending" | "completed" | "skipped";
 };

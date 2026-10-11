@@ -1,10 +1,16 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 
-import type { HabitFrequency, HabitType } from "../../types/habit";
+import { useApp } from "../../context/AppContext";
+import { areasForSpace } from "../../utils/taskSpaces";
+import type { Habit, HabitFrequency, HabitType } from "../../types/habit";
 import { BottomSheet } from "../ui/BottomSheet";
 
 export type HabitDraft = {
+  spaceId?: string;
+  area?: string;
+  plannedTime?: string;
+  estimatedMinutes?: number;
   title: string;
   icon: string;
   type: HabitType;
@@ -15,6 +21,9 @@ export type HabitDraft = {
 
 type Props = {
   initialTitle?: string;
+  initialSpaceId?: string;
+  initialArea?: string;
+  initialHabit?: Habit;
   open: boolean;
   onClose: () => void;
   onSave: (habit: HabitDraft) => void;
@@ -30,7 +39,13 @@ const weekdayOptions = [
   { value: 0, label: "D" },
 ];
 
-export function HabitEditorSheet({ open, initialTitle = "", onClose, onSave }: Props) {
+export function HabitEditorSheet({ open, initialTitle = "", initialHabit, initialSpaceId, initialArea, onClose, onSave }: Props) {
+  const { settings } = useApp();
+  const [spaceId, setSpaceId] = useState("");
+  const [area, setArea] = useState("");
+  const [time, setTime] = useState("");
+  const [duration, setDuration] = useState(30);
+  const [customDuration, setCustomDuration] = useState(false);
   const [title, setTitle] = useState("");
   const [icon, setIcon] = useState("✨");
   const [type, setType] = useState<HabitType>("complete");
@@ -40,7 +55,18 @@ export function HabitEditorSheet({ open, initialTitle = "", onClose, onSave }: P
   const [specificDays, setSpecificDays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [timesPerWeek, setTimesPerWeek] = useState(3);
 
-  useEffect(() => { if (open) setTitle(initialTitle); }, [open, initialTitle]);
+  useEffect(() => {
+    if (!open) return;
+    setTitle(initialHabit?.title ?? initialTitle);
+    setIcon(initialHabit?.icon ?? "✨"); setType(initialHabit?.type ?? "complete");
+    setTarget(initialHabit?.target ?? 1); setUnit(initialHabit?.unit ?? "");
+    setFrequencyType(initialHabit?.frequency.type ?? "daily");
+    setSpecificDays(initialHabit?.frequency.type === "specific_days" ? initialHabit.frequency.days : [1,2,3,4,5]);
+    setTimesPerWeek(initialHabit?.frequency.type === "times_per_week" ? initialHabit.frequency.times : 3);
+    setSpaceId(initialHabit?.spaceId ?? initialSpaceId ?? ""); setArea(initialHabit?.area ?? initialArea ?? "");
+    setTime(initialHabit?.plannedTime ?? ""); setDuration(initialHabit?.type === "time" ? initialHabit.target ?? initialHabit.estimatedMinutes ?? 30 : initialHabit?.estimatedMinutes ?? 30);
+    setCustomDuration(!!initialHabit?.estimatedMinutes && ![15, 30, 60, 120].includes(initialHabit.estimatedMinutes));
+  }, [open, initialTitle, initialHabit, initialSpaceId, initialArea]);
 
   function handleSave() {
     const clean = title.trim();
@@ -54,16 +80,15 @@ export function HabitEditorSheet({ open, initialTitle = "", onClose, onSave }: P
           : { type: "times_per_week", times: Math.max(1, Math.min(7, timesPerWeek)) };
 
     onSave({
+      spaceId: spaceId || undefined, area: area || undefined,
+      plannedTime: type === "time" ? time || undefined : undefined,
+      estimatedMinutes: type === "time" ? Math.max(1, Math.min(1440, duration || 30)) : undefined,
       title: clean,
       icon: icon.trim() || "✨",
       type,
       frequency,
-      ...(type !== "complete"
-        ? {
-            target: Math.max(1, target),
-            unit: unit.trim() || defaultUnit(type),
-          }
-        : {}),
+      target: type === "time" ? Math.max(1, Math.min(1440, duration || 30)) : type === "quantity" ? Math.max(1, target) : undefined,
+      unit: type === "time" ? "min" : type === "quantity" ? unit.trim() || "veces" : undefined,
     });
 
     reset();
@@ -88,11 +113,11 @@ export function HabitEditorSheet({ open, initialTitle = "", onClose, onSave }: P
   }
 
   return (
-    <BottomSheet open={open} onClose={onClose} ariaLabel="Crear hábito" maxWidthClass="max-w-xl">
+    <BottomSheet open={open} onClose={onClose} ariaLabel={initialHabit ? "Editar hábito" : "Crear hábito"} maxWidthClass="max-w-xl">
       <div className="mb-5 flex items-center justify-between gap-4">
         <div>
-          <p className="text-xs font-bold uppercase tracking-wide text-gray-400">Nuevo hábito</p>
-          <h2 className="mt-1 text-xl font-bold text-gray-900">Crear hábito</h2>
+          <p className="text-xs font-bold uppercase tracking-wide text-gray-400">{initialHabit ? "Hábito" : "Nuevo hábito"}</p>
+          <h2 className="mt-1 text-xl font-bold text-gray-900">{initialHabit ? "Editar hábito" : "Crear hábito"}</h2>
         </div>
         <button
           type="button"
@@ -112,6 +137,10 @@ export function HabitEditorSheet({ open, initialTitle = "", onClose, onSave }: P
         className="mt-2 h-12 w-full rounded-2xl border border-gray-200 px-4 outline-none focus:border-gray-400"
       />
 
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <label className="text-sm font-semibold">Espacio<select value={spaceId} onChange={e => { setSpaceId(e.target.value); setArea(""); }} className="mt-2 w-full rounded-xl border p-2"><option value="">General</option>{settings.spaces?.map(space => <option key={space.id} value={space.id}>{space.name}</option>)}</select></label>
+        <label className="text-sm font-semibold">Área<select value={area} onChange={e => setArea(e.target.value)} className="mt-2 w-full rounded-xl border p-2"><option value="">Sin área</option>{areasForSpace(settings, spaceId || undefined).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+      </div>
       <label className="mt-5 block text-sm font-semibold text-gray-700">Icono</label>
       <input
         value={icon}
@@ -141,7 +170,21 @@ export function HabitEditorSheet({ open, initialTitle = "", onClose, onSave }: P
         ))}
       </div>
 
-      {type !== "complete" && (
+      {type === "time" && <div className="mt-4 grid grid-cols-2 gap-3">
+        <label className="text-sm font-semibold">Hora (opcional)<input type="time" value={time} onChange={e => setTime(e.target.value)} className="mt-2 w-full rounded-xl border p-2" /></label>
+        <div className="col-span-2">
+          <p className="text-sm font-semibold">Duración</p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {[15, 30, 60, 120].map(minutes => <button key={minutes} type="button" aria-pressed={!customDuration && duration === minutes} onClick={() => { setDuration(minutes); setCustomDuration(false); }} className={`rounded-lg border px-2.5 py-2 text-xs font-semibold ${!customDuration && duration === minutes ? "border-indigo-600 bg-indigo-600 text-white" : "border-gray-200 text-gray-600"}`}>{minutes < 60 ? `${minutes} min` : `${minutes / 60} h`}</button>)}
+            <button type="button" aria-pressed={customDuration} onClick={() => setCustomDuration(true)} className={`rounded-lg border px-2.5 py-2 text-xs font-semibold ${customDuration ? "border-indigo-600 bg-indigo-600 text-white" : "border-gray-200 text-gray-600"}`}>Elegir tiempo</button>
+          </div>
+          {customDuration && <label className="mt-2 flex items-center gap-2 text-xs text-gray-500"><input aria-label="Duración del hábito en minutos" type="number" min={1} max={1440} value={duration} onChange={e => setDuration(Number(e.target.value))} className="w-24 rounded-lg border p-2" /> minutos</label>}
+        </div>
+
+      {time && <button type="button" onClick={() => setTime("")} className="col-span-2 text-left text-xs text-gray-500">Quitar horario</button>}
+      </div>}
+
+      {type === "quantity" && (
         <div className="mt-5 grid grid-cols-2 gap-3">
           <div>
             <label className="text-sm font-semibold text-gray-700">Meta</label>
@@ -226,10 +269,10 @@ export function HabitEditorSheet({ open, initialTitle = "", onClose, onSave }: P
         <button
           type="button"
           onClick={handleSave}
-          disabled={!title.trim()}
+          disabled={!title.trim() || (frequencyType === "specific_days" && !specificDays.length)}
           className="h-11 rounded-xl bg-gray-900 px-5 text-sm font-semibold text-white disabled:bg-gray-200 disabled:text-gray-400 sm:min-w-36"
         >
-          Crear hábito
+          {initialHabit ? "Guardar cambios" : "Crear hábito"}
         </button>
       </div>
     </BottomSheet>

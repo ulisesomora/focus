@@ -23,7 +23,7 @@ export function isHabitScheduledForDate(habit: Habit, date: Date) {
 
 export function isHabitDueToday(habit: Habit, logs: HabitLog[], date = new Date()) {
   if (habit.frequency.type === "times_per_week") {
-    return getWeeklyCompletedCount(habit, logs, date) < habit.frequency.times;
+    return Boolean(getHabitLog(logs, habit.id, getDateKey(date))) || getWeeklyCompletedCount(habit, logs, date) < habit.frequency.times;
   }
   return isHabitScheduledForDate(habit, date);
 }
